@@ -200,6 +200,10 @@ export default function InsightsPage() {
         <h2 className="text-sm font-semibold">6-Month Trend</h2>
         {trendLoading ? (
           <Skeleton className="h-48 w-full" />
+        ) : !monthlyTrend.some((r) => r.income > 0 || r.expenses > 0) ? (
+          <div className="h-48 flex items-center justify-center">
+            <p className="text-sm text-muted-foreground">No data yet</p>
+          </div>
         ) : (
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={monthlyTrend}>
@@ -296,7 +300,7 @@ export default function InsightsPage() {
       </div>
 
       {/* Month-over-month */}
-      {!trendLoading && monthlyTrend.length > 0 && (
+      {!trendLoading && monthlyTrend.some((r) => r.income > 0 || r.expenses > 0) && (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           <div className="p-4 border-b border-border">
             <h2 className="text-sm font-semibold">Month-over-Month</h2>
