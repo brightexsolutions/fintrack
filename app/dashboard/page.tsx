@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { startOfMonth, endOfMonth, format } from 'date-fns'
+import { format } from 'date-fns'
 import { SummaryCards } from '@/components/dashboard/summary-cards'
 import { IncomeExpenseChart } from '@/components/dashboard/income-expense-chart'
 import { RecentTransactions } from '@/components/dashboard/recent-transactions'
@@ -10,40 +10,35 @@ import { useMonthlyTrend } from '@/hooks/use-insights'
 
 export default function DashboardPage() {
   const now = new Date()
-  const monthStart = startOfMonth(now).toISOString()
-  const monthEnd = endOfMonth(now).toISOString()
 
-  // All-time transactions for balance + recent list
+  // All-time transactions — used for balance, totals, and recent list
   const { data: allTx = [], isLoading: allLoading } = useTransactions()
-
-  // Current-month transactions for monthly income/expense cards
-  const { data: monthTx = [] } = useTransactions({
-    dateFrom: monthStart,
-    dateTo: monthEnd,
-  })
 
   const { data: chartData = [], isLoading: chartLoading } = useMonthlyTrend()
 
-  const totalBalance = useMemo(
-    () => allTx
-      .filter((t) => t.status === 'completed')
-      .reduce((s, t) => s + (t.type === 'income' ? Number(t.amount) : -Number(t.amount)), 0),
+  const completedTx = useMemo(
+    () => allTx.filter((t) => t.status === 'completed'),
     [allTx]
   )
 
-  const monthlyIncome = useMemo(
-    () => monthTx.filter((t) => t.status === 'completed' && t.type === 'income').reduce((s, t) => s + Number(t.amount), 0),
-    [monthTx]
+  const totalBalance = useMemo(
+    () => completedTx.reduce((s, t) => s + (t.type === 'income' ? Number(t.amount) : -Number(t.amount)), 0),
+    [completedTx]
   )
 
-  const monthlyExpenses = useMemo(
-    () => monthTx.filter((t) => t.status === 'completed' && t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0),
-    [monthTx]
+  const totalIncome = useMemo(
+    () => completedTx.filter((t) => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0),
+    [completedTx]
+  )
+
+  const totalExpenses = useMemo(
+    () => completedTx.filter((t) => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0),
+    [completedTx]
   )
 
   const recent = useMemo(
-    () => allTx.filter((t) => t.status === 'completed').slice(0, 8),
-    [allTx]
+    () => completedTx.slice(0, 8),
+    [completedTx]
   )
 
   return (
@@ -55,8 +50,8 @@ export default function DashboardPage() {
 
       <SummaryCards
         totalBalance={totalBalance}
-        monthlyIncome={monthlyIncome}
-        monthlyExpenses={monthlyExpenses}
+        totalIncome={totalIncome}
+        totalExpenses={totalExpenses}
         loading={allLoading}
       />
 
