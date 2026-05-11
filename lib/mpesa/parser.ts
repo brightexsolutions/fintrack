@@ -48,11 +48,17 @@ function parseFee(sms: string): number | null {
 }
 
 function parseTimestamp(sms: string): Date | null {
-  // "17/9/13 at 3:16 PM" or "9/1/24 at 11:02 AM"
-  const m = sms.match(/(\d{1,2}\/\d{1,2}\/\d{2,4})\s+at\s+(\d{1,2}:\d{2}\s*[AP]M)/i)
+  // "17/9/24 at 3:16 PM" or "9/1/24 at 11:02 AM" (DD/M/YY DD/MM/YYYY formats)
+  const m = sms.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})\s+at\s+(\d{1,2}):(\d{2})\s*([AP]M)/i)
   if (!m) return null
   try {
-    return new Date(`${m[1]} ${m[2]}`)
+    const [, day, month, rawYear, hour, min, ampm] = m
+    const year = rawYear.length === 2 ? 2000 + parseInt(rawYear, 10) : parseInt(rawYear, 10)
+    let h = parseInt(hour, 10)
+    if (ampm.toUpperCase() === 'PM' && h !== 12) h += 12
+    if (ampm.toUpperCase() === 'AM' && h === 12) h = 0
+    const date = new Date(year, parseInt(month, 10) - 1, parseInt(day, 10), h, parseInt(min, 10))
+    return isNaN(date.getTime()) ? null : date
   } catch {
     return null
   }
