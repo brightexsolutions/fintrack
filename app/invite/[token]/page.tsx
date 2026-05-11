@@ -38,32 +38,21 @@ export default function InvitePage() {
         setUserEmail(profile?.email ?? user.email ?? null)
       }
 
-      // Fetch invitation details (publicly readable by token)
-      const { data: inv, error } = await supabase
-        .from('workspace_invitations')
-        .select('invitee_email, role, expires_at, workspace:workspaces(name)')
-        .eq('token', token)
-        .eq('status', 'pending')
-        .single()
+      // Fetch via API route — uses service role to bypass RLS on workspaces join
+      const res = await fetch(`/api/invitations/accept?token=${encodeURIComponent(token)}`)
+      const json = await res.json()
 
-      if (error || !inv) {
+      if (!res.ok) {
         setState('error')
-        setErrorMsg('This invitation link is invalid or has already been used.')
+        setErrorMsg(res.status === 410 ? 'This invitation link has expired.' : 'This invitation link is invalid or has already been used.')
         return
       }
 
-      if (new Date(inv.expires_at) < new Date()) {
-        setState('error')
-        setErrorMsg('This invitation link has expired.')
-        return
-      }
-
-      const ws = inv.workspace as unknown as { name: string } | null
       setInvite({
-        workspace_name: ws?.name ?? 'Unknown workspace',
-        invitee_email: inv.invitee_email,
-        role: inv.role,
-        expires_at: inv.expires_at,
+        workspace_name: json.workspace_name,
+        invitee_email: json.invitee_email,
+        role: json.role,
+        expires_at: json.expires_at,
       })
       setState('ready')
     }
