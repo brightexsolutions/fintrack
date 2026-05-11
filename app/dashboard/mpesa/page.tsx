@@ -128,16 +128,62 @@ export default function MpesaPage() {
             </Button>
           </div>
 
-          {/* Preview table */}
+          {/* Preview — card list on mobile, table on sm+ */}
           <div className="rounded-xl border border-border overflow-hidden">
-            <div className="overflow-x-auto">
+
+            {/* Mobile: cards */}
+            <div className="sm:hidden divide-y divide-border">
+              {parsed.map((tx, i) => {
+                const txCategories = categories.filter((c) =>
+                  tx.type === 'income' ? c.type === 'income' || c.type === 'both' : c.type === 'expense' || c.type === 'both'
+                )
+                return (
+                  <div key={i} className="p-3 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0 ${
+                            tx.type === 'income' ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' : 'bg-red-500/10 text-red-600 dark:text-red-400'
+                          }`}>
+                            {tx.type}
+                          </span>
+                          {tx.timestamp && (
+                            <span className="text-[10px] text-muted-foreground">{formatDate(tx.timestamp)}</span>
+                          )}
+                        </div>
+                        <p className="text-xs font-medium truncate">{tx.description}</p>
+                        {tx.mpesa_ref && (
+                          <p className="text-[10px] text-muted-foreground font-mono">{tx.mpesa_ref}</p>
+                        )}
+                      </div>
+                      <p className={`text-sm font-semibold tabular-nums shrink-0 ${
+                        tx.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-foreground'
+                      }`}>{format(tx.amount)}</p>
+                    </div>
+                    <select
+                      className="w-full h-8 rounded-lg border border-input bg-transparent px-2.5 text-xs outline-none focus-visible:border-ring dark:bg-input/30"
+                      value={categoryMap[i] ?? ''}
+                      onChange={(e) => setCategoryMap((prev) => ({ ...prev, [i]: e.target.value }))}
+                    >
+                      <option value="">No category</option>
+                      {txCategories.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Desktop: table */}
+            <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-muted/50 border-b border-border">
                     <th className="text-left text-xs font-medium text-muted-foreground px-3 py-2">Type</th>
                     <th className="text-left text-xs font-medium text-muted-foreground px-3 py-2">Description</th>
                     <th className="text-right text-xs font-medium text-muted-foreground px-3 py-2">Amount</th>
-                    <th className="text-left text-xs font-medium text-muted-foreground px-3 py-2 hidden sm:table-cell">Date</th>
+                    <th className="text-left text-xs font-medium text-muted-foreground px-3 py-2">Date</th>
                     <th className="text-left text-xs font-medium text-muted-foreground px-3 py-2">Category</th>
                   </tr>
                 </thead>
@@ -156,7 +202,7 @@ export default function MpesaPage() {
                           </span>
                         </td>
                         <td className="px-3 py-2">
-                          <p className="text-xs max-w-[180px] truncate">{tx.description}</p>
+                          <p className="text-xs max-w-[200px] truncate">{tx.description}</p>
                           {tx.mpesa_ref && (
                             <p className="text-[10px] text-muted-foreground font-mono">{tx.mpesa_ref}</p>
                           )}
@@ -164,20 +210,18 @@ export default function MpesaPage() {
                         <td className="px-3 py-2 text-right tabular-nums text-xs font-medium">
                           {format(tx.amount)}
                         </td>
-                        <td className="px-3 py-2 text-xs text-muted-foreground hidden sm:table-cell">
+                        <td className="px-3 py-2 text-xs text-muted-foreground">
                           {tx.timestamp ? formatDate(tx.timestamp) : '—'}
                         </td>
                         <td className="px-3 py-2">
                           <select
-                            className="h-7 w-36 rounded-lg border border-input bg-transparent px-2.5 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                            className="h-7 w-40 rounded-lg border border-input bg-transparent px-2.5 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
                             value={categoryMap[i] ?? ''}
                             onChange={(e) => setCategoryMap((prev) => ({ ...prev, [i]: e.target.value }))}
                           >
                             <option value="">No category</option>
                             {txCategories.map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {c.name}
-                              </option>
+                              <option key={c.id} value={c.id}>{c.name}</option>
                             ))}
                           </select>
                         </td>
