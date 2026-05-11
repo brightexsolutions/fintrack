@@ -290,13 +290,40 @@ export default function InsightsPage() {
         )}
       </div>
 
-      {/* Month-over-month table */}
+      {/* Month-over-month */}
       {!trendLoading && monthlyTrend.length > 0 && (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           <div className="p-4 border-b border-border">
             <h2 className="text-sm font-semibold">Month-over-Month</h2>
           </div>
-          <div className="overflow-x-auto">
+
+          {/* Mobile: card rows */}
+          <div className="sm:hidden divide-y divide-border">
+            {monthlyTrend.map((row, i) => (
+              <div key={i} className="p-3 space-y-1.5">
+                <p className="text-xs font-semibold">{row.month}</p>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div>
+                    <p className="text-muted-foreground text-[10px] mb-0.5">Income</p>
+                    <p className="tabular-nums text-emerald-600 font-medium">{fmtAmount(row.income)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-[10px] mb-0.5">Expenses</p>
+                    <p className="tabular-nums text-red-500 font-medium">{fmtAmount(row.expenses)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-[10px] mb-0.5">Net</p>
+                    <p className={`tabular-nums font-semibold ${row.net >= 0 ? 'text-blue-600' : 'text-red-500'}`}>
+                      {row.net >= 0 ? '+' : ''}{fmtAmount(row.net)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop: table */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-border bg-muted/30">
