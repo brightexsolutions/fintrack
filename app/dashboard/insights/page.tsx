@@ -20,6 +20,7 @@ import {
   type InsightFilters,
 } from '@/hooks/use-insights'
 import { useCurrency } from '@/hooks/use-currency'
+import { useWorkspaceStore } from '@/stores/workspace-store'
 
 const PRESET_RANGES = [
   { label: 'This month', value: 'this_month' },
@@ -69,11 +70,15 @@ export default function InsightsPage() {
   const [preset, setPreset] = useState('this_month')
   const [activeCategory, setActiveCategory] = useState<'income' | 'expense'>('expense')
   const { format: fmtAmount } = useCurrency()
+  const { activeWorkspaceId } = useWorkspaceStore()
 
-  const filters = useMemo(() => getFiltersFromPreset(preset), [preset])
+  const filters = useMemo(
+    () => ({ ...getFiltersFromPreset(preset), workspace_id: activeWorkspaceId }),
+    [preset, activeWorkspaceId]
+  )
 
   const { data: transactions = [], isLoading } = useInsightTransactions(filters)
-  const { data: monthlyTrend = [], isLoading: trendLoading } = useMonthlyTrend()
+  const { data: monthlyTrend = [], isLoading: trendLoading } = useMonthlyTrend(activeWorkspaceId)
 
   const summary = useMemo(() => buildSummary(transactions), [transactions])
   const categoryBreakdown = useMemo(() => buildCategoryBreakdown(transactions, activeCategory), [transactions, activeCategory])

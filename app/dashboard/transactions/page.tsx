@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { TransactionList } from '@/components/transactions/transaction-list'
@@ -10,7 +10,7 @@ import { useTransactions } from '@/hooks/use-transactions'
 import type { TransactionFilters } from '@/hooks/use-transactions'
 import type { Transaction } from '@/types/database'
 import { useWorkspaceStore } from '@/stores/workspace-store'
-import { useWorkspaces } from '@/hooks/use-workspace'
+import { useWorkspaces, useWorkspaceMembers } from '@/hooks/use-workspace'
 
 export default function TransactionsPage() {
   const [filters, setFilters] = useState<TransactionFilters>({ type: 'all' })
@@ -20,6 +20,17 @@ export default function TransactionsPage() {
   const { activeWorkspaceId } = useWorkspaceStore()
   const { data: workspaces = [] } = useWorkspaces()
   const activeWs = workspaces.find((w) => w.id === activeWorkspaceId)
+
+  // Build user_id → profile map for workspace "added by" display
+  const { data: wsMembers = [] } = useWorkspaceMembers(activeWorkspaceId)
+  const memberMap = useMemo(() => {
+    if (!activeWorkspaceId) return undefined
+    const map = new Map<string, { name: string; email: string }>()
+    wsMembers.forEach((m) => {
+      if (m.profile) map.set(m.user_id, { name: m.profile.full_name, email: m.profile.email })
+    })
+    return map
+  }, [wsMembers, activeWorkspaceId])
 
   const { data: transactions = [], isLoading } = useTransactions({
     ...filters,
@@ -64,6 +75,7 @@ export default function TransactionsPage() {
         transactions={transactions}
         loading={isLoading}
         onEdit={handleEdit}
+        memberMap={memberMap}
       />
 
       {/* Form dialog */}

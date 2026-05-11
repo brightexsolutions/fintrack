@@ -37,10 +37,10 @@ export function Topbar() {
     <header className="h-14 border-b border-border/60 bg-card px-4 flex items-center justify-between sticky top-0 z-40">
       <MobileNav />
 
-      {/* Workspace selector */}
+      {/* Workspace selector — visible on all screen sizes when workspaces exist */}
       {workspaces.length > 0 && (
         <DropdownMenu>
-          <DropdownMenuTrigger className="hidden sm:flex h-7 px-2 text-xs gap-1.5 max-w-[160px] rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground items-center truncate">
+          <DropdownMenuTrigger className="flex h-7 px-2 text-xs gap-1.5 max-w-[140px] rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground items-center truncate ml-1 sm:ml-0">
             {activeWorkspaceId ? <Users className="h-3 w-3 shrink-0" /> : <User className="h-3 w-3 shrink-0" />}
             <span className="truncate">{activeWs?.name ?? 'Personal'}</span>
           </DropdownMenuTrigger>
@@ -48,7 +48,7 @@ export function Topbar() {
             <DropdownMenuItem onClick={() => setActiveWorkspace(null)} className={!activeWorkspaceId ? 'bg-muted' : ''}>
               <User className="h-3.5 w-3.5 mr-2" /> Personal
             </DropdownMenuItem>
-            {workspaces.length > 0 && <DropdownMenuSeparator />}
+            <DropdownMenuSeparator />
             {workspaces.map((ws) => (
               <DropdownMenuItem key={ws.id} onClick={() => setActiveWorkspace(ws.id)} className={activeWorkspaceId === ws.id ? 'bg-muted' : ''}>
                 <Users className="h-3.5 w-3.5 mr-2" /> {ws.name}
