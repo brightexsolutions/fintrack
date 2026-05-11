@@ -1,6 +1,6 @@
 'use client'
 
-import { Moon, Sun, Bell } from 'lucide-react'
+import { Moon, Sun, Bell, Users, User } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -14,11 +14,16 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useProfile } from '@/hooks/use-profile'
+import { useWorkspaces } from '@/hooks/use-workspace'
+import { useWorkspaceStore } from '@/stores/workspace-store'
 
 export function Topbar() {
   const { theme, setTheme } = useTheme()
   const router = useRouter()
   const { data: profile } = useProfile()
+  const { data: workspaces = [] } = useWorkspaces()
+  const { activeWorkspaceId, setActiveWorkspace } = useWorkspaceStore()
+  const activeWs = workspaces.find((w) => w.id === activeWorkspaceId)
 
   async function handleSignOut() {
     const supabase = createClient()
@@ -31,6 +36,27 @@ export function Topbar() {
   return (
     <header className="h-14 border-b border-border/60 bg-card px-4 flex items-center justify-between sticky top-0 z-40">
       <MobileNav />
+
+      {/* Workspace selector */}
+      {workspaces.length > 0 && (
+        <DropdownMenu>
+          <DropdownMenuTrigger className="hidden sm:flex h-7 px-2 text-xs gap-1.5 max-w-[160px] rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground items-center truncate">
+            {activeWorkspaceId ? <Users className="h-3 w-3 shrink-0" /> : <User className="h-3 w-3 shrink-0" />}
+            <span className="truncate">{activeWs?.name ?? 'Personal'}</span>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-48">
+            <DropdownMenuItem onClick={() => setActiveWorkspace(null)} className={!activeWorkspaceId ? 'bg-muted' : ''}>
+              <User className="h-3.5 w-3.5 mr-2" /> Personal
+            </DropdownMenuItem>
+            {workspaces.length > 0 && <DropdownMenuSeparator />}
+            {workspaces.map((ws) => (
+              <DropdownMenuItem key={ws.id} onClick={() => setActiveWorkspace(ws.id)} className={activeWorkspaceId === ws.id ? 'bg-muted' : ''}>
+                <Users className="h-3.5 w-3.5 mr-2" /> {ws.name}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
 
       <div className="flex items-center gap-2 ml-auto">
         <Button

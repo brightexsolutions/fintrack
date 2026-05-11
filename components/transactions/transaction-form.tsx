@@ -18,6 +18,7 @@ import {
 import { transactionSchema, type TransactionFormData } from '@/lib/validations/transaction'
 import { useCreateTransaction, useUpdateTransaction, useCategories } from '@/hooks/use-transactions'
 import type { Transaction } from '@/types/database'
+import { useWorkspaceStore } from '@/stores/workspace-store'
 
 const PAYMENT_METHODS = ['M-Pesa', 'Cash', 'Bank Transfer', 'Credit Card', 'Debit Card', 'Cheque', 'Other']
 const EMPTY_CATEGORY_VALUE = '__no_category__'
@@ -32,6 +33,7 @@ export function TransactionForm({ open, onClose, editing }: TransactionFormProps
   const { data: categories = [] } = useCategories()
   const create = useCreateTransaction()
   const update = useUpdateTransaction()
+  const { activeWorkspaceId } = useWorkspaceStore()
 
   const isEditing = !!editing
   const isPending = create.isPending || update.isPending
@@ -81,7 +83,7 @@ export function TransactionForm({ open, onClose, editing }: TransactionFormProps
     if (isEditing && editing) {
       await update.mutateAsync({ id: editing.id, values })
     } else {
-      await create.mutateAsync(values)
+      await create.mutateAsync({ ...values, workspace_id: activeWorkspaceId ?? undefined })
     }
     reset()
     onClose()

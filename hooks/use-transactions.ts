@@ -12,6 +12,7 @@ export interface TransactionFilters {
   search?: string
   dateFrom?: string
   dateTo?: string
+  workspace_id?: string | null // null = personal only, string = workspace
 }
 
 function invalidateFinanceQueries(queryClient: ReturnType<typeof useQueryClient>) {
@@ -33,8 +34,14 @@ export function useTransactions(filters: TransactionFilters = {}) {
       let query = supabase
         .from('transactions')
         .select('*, category:categories(id, name, color, icon)')
-        .eq('user_id', user.id)
         .order('transaction_date', { ascending: false })
+
+      // Workspace mode: show workspace transactions; Personal mode: show own transactions
+      if (filters.workspace_id) {
+        query = query.eq('workspace_id', filters.workspace_id)
+      } else {
+        query = query.eq('user_id', user.id)
+      }
 
       if (filters.type && filters.type !== 'all') query = query.eq('type', filters.type)
       if (filters.category_id) query = query.eq('category_id', filters.category_id)
@@ -53,13 +60,14 @@ export function useTransactions(filters: TransactionFilters = {}) {
 export function useCreateTransaction() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (values: TransactionFormData) => {
+    mutationFn: async (values: TransactionFormData & { workspace_id?: string }) => {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
       const { data, error } = await supabase.from('transactions').insert({
         user_id: user.id,
+        workspace_id: values.workspace_id ?? null,
         type: values.type,
         amount: values.amount,
         description: values.description,
@@ -77,6 +85,8 @@ export function useCreateTransaction() {
     onSuccess: () => {
       invalidateFinanceQueries(queryClient)
       toast.success('Transaction added')
+      // Fire budget alert check in background (non-blocking)
+      fetch('/api/push/budget-alert', { method: 'POST' }).catch(() => {})
     },
     onError: (err: Error) => toast.error(err.message),
   })

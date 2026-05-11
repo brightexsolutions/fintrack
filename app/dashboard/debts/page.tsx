@@ -11,12 +11,13 @@ import { DebtCard } from '@/components/debts/debt-card'
 import { DebtForm } from '@/components/debts/debt-form'
 import { PaymentForm } from '@/components/debts/payment-form'
 import { useDebts, useDeleteDebt } from '@/hooks/use-debts'
-import { formatKES } from '@/lib/utils'
+import { useCurrency } from '@/hooks/use-currency'
 import type { Debt } from '@/types/database'
 
 type TabType = 'i_owe' | 'owed_to_me'
 
 export default function DebtsPage() {
+  const { format } = useCurrency()
   const [tab, setTab] = useState<TabType>('i_owe')
   const [formOpen, setFormOpen] = useState(false)
   const [paymentTarget, setPaymentTarget] = useState<Debt | null>(null)
@@ -56,7 +57,7 @@ export default function DebtsPage() {
           <h1 className="text-xl font-bold">Debts</h1>
           {!isLoading && activeDebts.length > 0 && (
             <p className="text-sm text-muted-foreground mt-0.5">
-              {tab === 'i_owe' ? 'You owe' : 'You are owed'} {formatKES(totalOwed)} total
+              {tab === 'i_owe' ? 'You owe' : 'You are owed'} {format(totalOwed)} total
             </p>
           )}
         </div>

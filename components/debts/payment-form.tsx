@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dialog'
 import { debtPaymentSchema, type DebtPaymentFormData } from '@/lib/validations/debt'
 import { useLogDebtPayment } from '@/hooks/use-debts'
-import { formatKES } from '@/lib/utils'
+import { useCurrency } from '@/hooks/use-currency'
 import type { Debt } from '@/types/database'
 
 interface PaymentFormProps {
@@ -21,6 +21,7 @@ interface PaymentFormProps {
 }
 
 export function PaymentForm({ open, onClose, debt }: PaymentFormProps) {
+  const { format } = useCurrency()
   const logPayment = useLogDebtPayment()
 
   const remaining = debt ? debt.amount - debt.amount_paid : 0
@@ -51,7 +52,7 @@ export function PaymentForm({ open, onClose, debt }: PaymentFormProps) {
         {debt && (
           <div className="text-sm text-muted-foreground -mt-1 mb-1">
             <span className="font-medium text-foreground">{debt.contact_name}</span>
-            {' · '}{formatKES(remaining)} remaining
+            {' · '}{format(remaining)} remaining
           </div>
         )}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

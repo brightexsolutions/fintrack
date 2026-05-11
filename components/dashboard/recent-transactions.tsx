@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
-import { formatKES, formatDate } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
+import { useCurrency } from '@/hooks/use-currency'
 import type { Transaction } from '@/types/database'
 
 interface RecentTransactionsProps {
@@ -15,6 +16,7 @@ interface RecentTransactionsProps {
 }
 
 export function RecentTransactions({ transactions, loading }: RecentTransactionsProps) {
+  const { format } = useCurrency()
   return (
     <Card className="border-border/60">
       <CardHeader className="pb-2 flex flex-row items-center justify-between">
@@ -72,7 +74,7 @@ export function RecentTransactions({ transactions, loading }: RecentTransactions
                 <p className={`text-sm font-semibold tabular-nums shrink-0 ${
                   tx.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-foreground'
                 }`}>
-                  {tx.type === 'income' ? '+' : '-'}{formatKES(tx.amount)}
+                  {tx.type === 'income' ? '+' : '-'}{format(tx.amount)}
                 </p>
               </div>
             ))}

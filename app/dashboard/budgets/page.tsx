@@ -10,10 +10,11 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { BudgetCard } from '@/components/budgets/budget-card'
 import { BudgetForm } from '@/components/budgets/budget-form'
 import { useBudgets, useDeleteBudget } from '@/hooks/use-budgets'
-import { formatKES } from '@/lib/utils'
+import { useCurrency } from '@/hooks/use-currency'
 import type { BudgetProgress } from '@/types/database'
 
 export default function BudgetsPage() {
+  const { format } = useCurrency()
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<BudgetProgress | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<BudgetProgress | null>(null)
@@ -66,9 +67,9 @@ export default function BudgetsPage() {
       {!isLoading && active.length > 0 && (
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label: 'Total budgeted', value: formatKES(totalBudgeted) },
-            { label: 'Total spent', value: formatKES(totalSpent) },
-            { label: 'Remaining', value: formatKES(Math.max(totalBudgeted - totalSpent, 0)) },
+            { label: 'Total budgeted', value: format(totalBudgeted) },
+            { label: 'Total spent', value: format(totalSpent) },
+            { label: 'Remaining', value: format(Math.max(totalBudgeted - totalSpent, 0)) },
           ].map(({ label, value }) => (
             <div key={label} className="rounded-xl border border-border bg-card p-3 text-center">
               <p className="text-xs text-muted-foreground">{label}</p>

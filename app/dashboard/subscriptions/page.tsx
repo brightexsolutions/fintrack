@@ -21,7 +21,8 @@ import {
 } from '@/hooks/use-subscriptions'
 import { useCategories } from '@/hooks/use-transactions'
 import { subscriptionSchema, type SubscriptionFormData } from '@/lib/validations/subscription'
-import { formatKES, formatDate } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
+import { useCurrency } from '@/hooks/use-currency'
 import { parseISO, differenceInDays } from 'date-fns'
 import type { Subscription } from '@/types/database'
 
@@ -50,6 +51,7 @@ function SubCard({
   onDelete: (s: Subscription) => void
   onMarkPaid: (s: Subscription) => void
 }) {
+  const { format } = useCurrency()
   const dueIn = differenceInDays(parseISO(sub.next_billing_date), new Date())
   const dueSoon = isDueSoon(sub.next_billing_date, sub.reminder_days)
   const overdue = dueIn < 0
@@ -94,7 +96,7 @@ function SubCard({
       </div>
 
       <div className="flex items-center justify-between">
-        <p className="text-lg font-bold tabular-nums">{formatKES(sub.amount)}</p>
+        <p className="text-lg font-bold tabular-nums">{format(sub.amount)}</p>
         <div className="text-right">
           <p className={`text-xs font-medium ${overdue ? 'text-red-500' : dueSoon ? 'text-amber-600' : 'text-muted-foreground'}`}>
             {overdue ? `${Math.abs(dueIn)}d overdue` : dueIn === 0 ? 'Due today' : `In ${dueIn}d`}
@@ -116,6 +118,7 @@ function SubCard({
 }
 
 export default function SubscriptionsPage() {
+  const { format } = useCurrency()
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Subscription | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Subscription | null>(null)
@@ -221,11 +224,11 @@ export default function SubscriptionsPage() {
         <div className="grid grid-cols-3 gap-3">
           <div className="rounded-xl border border-border bg-card p-3 text-center">
             <p className="text-xs text-muted-foreground">Monthly cost</p>
-            <p className="text-base font-bold tabular-nums mt-0.5">{formatKES(monthlyTotal)}</p>
+            <p className="text-base font-bold tabular-nums mt-0.5">{format(monthlyTotal)}</p>
           </div>
           <div className="rounded-xl border border-border bg-card p-3 text-center">
             <p className="text-xs text-muted-foreground">Yearly cost</p>
-            <p className="text-base font-bold tabular-nums mt-0.5">{formatKES(yearlyTotal)}</p>
+            <p className="text-base font-bold tabular-nums mt-0.5">{format(yearlyTotal)}</p>
           </div>
           <div className={`rounded-xl border p-3 text-center ${dueSoonCount > 0 ? 'border-amber-500/40 bg-amber-500/5' : 'border-border bg-card'}`}>
             <p className="text-xs text-muted-foreground">Due soon</p>

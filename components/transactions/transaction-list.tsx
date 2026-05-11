@@ -11,7 +11,8 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog'
-import { formatKES, formatDate } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
+import { useCurrency } from '@/hooks/use-currency'
 import { useDeleteTransaction } from '@/hooks/use-transactions'
 import type { Transaction } from '@/types/database'
 
@@ -24,6 +25,7 @@ interface TransactionListProps {
 export function TransactionList({ transactions, loading, onEdit }: TransactionListProps) {
   const [deleteTarget, setDeleteTarget] = useState<Transaction | null>(null)
   const deleteMutation = useDeleteTransaction()
+  const { format } = useCurrency()
 
   async function confirmDelete() {
     if (!deleteTarget) return
@@ -101,7 +103,7 @@ export function TransactionList({ transactions, loading, onEdit }: TransactionLi
               <p className={`text-sm font-semibold tabular-nums ${
                 tx.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-foreground'
               }`}>
-                {tx.type === 'income' ? '+' : '-'}{formatKES(tx.amount)}
+                {tx.type === 'income' ? '+' : '-'}{format(tx.amount)}
               </p>
 
               {/* Actions */}
@@ -133,7 +135,7 @@ export function TransactionList({ transactions, loading, onEdit }: TransactionLi
             <DialogTitle>Delete transaction?</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            &ldquo;{deleteTarget?.description}&rdquo; — {deleteTarget ? formatKES(deleteTarget.amount) : ''} will be permanently deleted.
+            &ldquo;{deleteTarget?.description}&rdquo; — {deleteTarget ? format(deleteTarget.amount) : ''} will be permanently deleted.
           </p>
           <DialogFooter className="gap-2">
             <Button variant="outline" size="sm" onClick={() => setDeleteTarget(null)}>Cancel</Button>

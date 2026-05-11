@@ -3,7 +3,7 @@
 import { ArrowDownRight, ArrowUpRight, TrendingUp, Wallet } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatKES } from '@/lib/utils'
+import { useCurrency } from '@/hooks/use-currency'
 
 interface SummaryCardsProps {
   totalBalance: number
@@ -13,12 +13,13 @@ interface SummaryCardsProps {
 }
 
 export function SummaryCards({ totalBalance, totalIncome, totalExpenses, loading }: SummaryCardsProps) {
+  const { format } = useCurrency()
   const savingsRate = totalIncome > 0 ? Math.max(0, ((totalIncome - totalExpenses) / totalIncome) * 100) : 0
 
   const cards = [
     {
       label: 'Total Balance',
-      value: formatKES(totalBalance),
+      value: format(totalBalance),
       icon: Wallet,
       iconBg: 'bg-emerald-500/10',
       iconColor: 'text-emerald-500',
@@ -26,7 +27,7 @@ export function SummaryCards({ totalBalance, totalIncome, totalExpenses, loading
     },
     {
       label: 'Total Income',
-      value: formatKES(totalIncome),
+      value: format(totalIncome),
       icon: ArrowUpRight,
       iconBg: 'bg-blue-500/10',
       iconColor: 'text-blue-500',
@@ -34,7 +35,7 @@ export function SummaryCards({ totalBalance, totalIncome, totalExpenses, loading
     },
     {
       label: 'Total Expenses',
-      value: formatKES(totalExpenses),
+      value: format(totalExpenses),
       icon: ArrowDownRight,
       iconBg: 'bg-red-500/10',
       iconColor: 'text-red-500',

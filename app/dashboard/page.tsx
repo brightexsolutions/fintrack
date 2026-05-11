@@ -7,12 +7,19 @@ import { IncomeExpenseChart } from '@/components/dashboard/income-expense-chart'
 import { RecentTransactions } from '@/components/dashboard/recent-transactions'
 import { useTransactions } from '@/hooks/use-transactions'
 import { useMonthlyTrend } from '@/hooks/use-insights'
+import { useWorkspaceStore } from '@/stores/workspace-store'
+import { useWorkspaces } from '@/hooks/use-workspace'
 
 export default function DashboardPage() {
   const now = new Date()
+  const { activeWorkspaceId } = useWorkspaceStore()
+  const { data: workspaces = [] } = useWorkspaces()
+  const activeWs = workspaces.find((w) => w.id === activeWorkspaceId)
 
   // All-time transactions — used for balance, totals, and recent list
-  const { data: allTx = [], isLoading: allLoading } = useTransactions()
+  const { data: allTx = [], isLoading: allLoading } = useTransactions({
+    workspace_id: activeWorkspaceId ?? undefined,
+  })
 
   const { data: chartData = [], isLoading: chartLoading } = useMonthlyTrend()
 
@@ -45,7 +52,9 @@ export default function DashboardPage() {
     <div className="space-y-5 max-w-6xl">
       <div>
         <h1 className="text-xl font-bold">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">{format(now, 'MMMM yyyy')} overview</p>
+        <p className="text-sm text-muted-foreground">
+          {activeWs ? <span className="text-emerald-600 font-medium">{activeWs.name}</span> : 'Personal'}{' · '}{format(now, 'MMMM yyyy')}
+        </p>
       </div>
 
       <SummaryCards

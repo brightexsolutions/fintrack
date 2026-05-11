@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dialog'
 import { contributionSchema, type ContributionFormData } from '@/lib/validations/savings'
 import { useAddContribution } from '@/hooks/use-savings'
-import { formatKES } from '@/lib/utils'
+import { useCurrency } from '@/hooks/use-currency'
 import type { SavingsGoal } from '@/types/database'
 
 interface ContributionFormProps {
@@ -21,6 +21,7 @@ interface ContributionFormProps {
 }
 
 export function ContributionForm({ open, onClose, goal }: ContributionFormProps) {
+  const { format } = useCurrency()
   const addContribution = useAddContribution()
 
   const remaining = goal ? goal.target_amount - goal.current_amount : 0
@@ -51,7 +52,7 @@ export function ContributionForm({ open, onClose, goal }: ContributionFormProps)
         {goal && (
           <div className="text-sm text-muted-foreground -mt-1 mb-1">
             <span className="font-medium text-foreground">{goal.name}</span>
-            {' · '}{formatKES(remaining)} to go
+            {' · '}{format(remaining)} to go
           </div>
         )}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
