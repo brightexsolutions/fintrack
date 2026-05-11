@@ -19,7 +19,7 @@ import {
   buildSummary, buildCategoryBreakdown, buildDailyTrend,
   type InsightFilters,
 } from '@/hooks/use-insights'
-import { formatKES } from '@/lib/utils'
+import { useCurrency } from '@/hooks/use-currency'
 
 const PRESET_RANGES = [
   { label: 'This month', value: 'this_month' },
@@ -49,6 +49,7 @@ function getFiltersFromPreset(preset: string): InsightFilters {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function KesTooltip({ active, payload, label }: any) {
+  const { format: fmtAmount } = useCurrency()
   if (!active || !payload?.length) return null
   return (
     <div className="rounded-lg border border-border bg-card p-2.5 text-xs shadow-md">
@@ -57,7 +58,7 @@ function KesTooltip({ active, payload, label }: any) {
         <div key={p.name} className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full shrink-0" style={{ background: p.color }} />
           <span className="text-muted-foreground capitalize">{p.name}</span>
-          <span className="font-medium ml-auto pl-4">{formatKES(p.value)}</span>
+          <span className="font-medium ml-auto pl-4">{fmtAmount(p.value)}</span>
         </div>
       ))}
     </div>
@@ -67,6 +68,7 @@ function KesTooltip({ active, payload, label }: any) {
 export default function InsightsPage() {
   const [preset, setPreset] = useState('this_month')
   const [activeCategory, setActiveCategory] = useState<'income' | 'expense'>('expense')
+  const { format: fmtAmount } = useCurrency()
 
   const filters = useMemo(() => getFiltersFromPreset(preset), [preset])
 
@@ -156,7 +158,7 @@ export default function InsightsPage() {
                 <Skeleton className="h-5 w-24 mb-1" />
               ) : (
                 <p className={`text-lg font-bold tabular-nums ${card.color}`}>
-                  {card.displayValue ?? formatKES(card.value ?? 0)}
+                  {card.displayValue ?? fmtAmount(card.value ?? 0)}
                 </p>
               )}
               <p className="text-xs text-muted-foreground mt-0.5">{card.label}</p>
@@ -258,7 +260,7 @@ export default function InsightsPage() {
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(value) => formatKES(Number(value))}
+                  formatter={(value) => fmtAmount(Number(value))}
                   contentStyle={{ fontSize: 11, borderRadius: '8px' }}
                 />
               </PieChart>
@@ -308,10 +310,10 @@ export default function InsightsPage() {
                 {monthlyTrend.map((row, i) => (
                   <tr key={i} className="border-b border-border/50 last:border-0 hover:bg-muted/20">
                     <td className="p-3 font-medium">{row.month}</td>
-                    <td className="p-3 text-right tabular-nums text-emerald-600">{formatKES(row.income)}</td>
-                    <td className="p-3 text-right tabular-nums text-red-500">{formatKES(row.expenses)}</td>
+                    <td className="p-3 text-right tabular-nums text-emerald-600">{fmtAmount(row.income)}</td>
+                    <td className="p-3 text-right tabular-nums text-red-500">{fmtAmount(row.expenses)}</td>
                     <td className={`p-3 text-right tabular-nums font-medium ${row.net >= 0 ? 'text-blue-600' : 'text-red-500'}`}>
-                      {row.net >= 0 ? '+' : ''}{formatKES(row.net)}
+                      {row.net >= 0 ? '+' : ''}{fmtAmount(row.net)}
                     </td>
                   </tr>
                 ))}

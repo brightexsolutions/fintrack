@@ -5,7 +5,8 @@ import { Badge } from '@/components/ui/badge'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { formatKES, formatDate } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
+import { useCurrency } from '@/hooks/use-currency'
 import type { BudgetProgress } from '@/types/database'
 
 interface BudgetCardProps {
@@ -15,6 +16,7 @@ interface BudgetCardProps {
 }
 
 export function BudgetCard({ budget, onEdit, onDelete }: BudgetCardProps) {
+  const { format } = useCurrency()
   const pct = Math.min(Number(budget.percentage), 100)
   const isExceeded = budget.is_exceeded
   const isWarning = !isExceeded && Number(budget.percentage) >= Number(budget.alert_threshold)
@@ -83,8 +85,8 @@ export function BudgetCard({ budget, onEdit, onDelete }: BudgetCardProps) {
       {/* Progress bar */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between text-xs">
-          <span className="font-medium tabular-nums">{formatKES(budget.spent)}</span>
-          <span className="text-muted-foreground tabular-nums">of {formatKES(budget.budget_amount)}</span>
+          <span className="font-medium tabular-nums">{format(budget.spent)}</span>
+          <span className="text-muted-foreground tabular-nums">of {format(budget.budget_amount)}</span>
         </div>
         <div className="h-2 rounded-full bg-muted overflow-hidden">
           <div
@@ -97,7 +99,7 @@ export function BudgetCard({ budget, onEdit, onDelete }: BudgetCardProps) {
             <TrendingUp className="h-3 w-3" />
             {Number(budget.percentage).toFixed(1)}% used
           </span>
-          <span>{isExceeded ? `${formatKES(Math.abs(budget.remaining))} over` : `${formatKES(budget.remaining)} left`}</span>
+          <span>{isExceeded ? `${format(Math.abs(budget.remaining))} over` : `${format(budget.remaining)} left`}</span>
         </div>
       </div>
 

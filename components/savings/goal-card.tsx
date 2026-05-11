@@ -4,7 +4,8 @@ import { MoreHorizontal, Pencil, Trash2, PlusCircle, Calendar, Trophy } from 'lu
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { formatKES, formatDate, daysUntil } from '@/lib/utils'
+import { formatDate, daysUntil } from '@/lib/utils'
+import { useCurrency } from '@/hooks/use-currency'
 import type { SavingsGoal } from '@/types/database'
 
 interface GoalCardProps {
@@ -15,6 +16,7 @@ interface GoalCardProps {
 }
 
 export function GoalCard({ goal, onEdit, onDelete, onContribute }: GoalCardProps) {
+  const { format } = useCurrency()
   const pct = Math.min((goal.current_amount / goal.target_amount) * 100, 100)
   const isCompleted = goal.status === 'completed'
   const days = goal.target_date ? daysUntil(goal.target_date) : null
@@ -63,8 +65,8 @@ export function GoalCard({ goal, onEdit, onDelete, onContribute }: GoalCardProps
       <div className="space-y-1.5">
         <div className="flex items-end justify-between">
           <div>
-            <p className="font-semibold text-base tabular-nums">{formatKES(goal.current_amount)}</p>
-            <p className="text-xs text-muted-foreground">of {formatKES(goal.target_amount)}</p>
+            <p className="font-semibold text-base tabular-nums">{format(goal.current_amount)}</p>
+            <p className="text-xs text-muted-foreground">of {format(goal.target_amount)}</p>
           </div>
           <p className={`text-sm font-medium tabular-nums ${isCompleted ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>
             {pct.toFixed(1)}%

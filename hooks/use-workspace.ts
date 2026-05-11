@@ -33,14 +33,10 @@ export function useWorkspaceMembers(workspaceId: string | null) {
     enabled: !!workspaceId,
     queryFn: async () => {
       if (!workspaceId) return []
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from('workspace_members')
-        .select('*, profile:profiles(id, full_name, email, avatar_url)')
-        .eq('workspace_id', workspaceId)
-        .eq('is_active', true)
-
-      if (error) throw error
+      // Use API route with service role so all members can see each other's profiles
+      const res = await fetch(`/api/workspace/${workspaceId}/members`)
+      if (!res.ok) throw new Error('Failed to fetch members')
+      const data = await res.json()
       return (data ?? []) as (WorkspaceMember & { profile: { id: string; full_name: string; email: string; avatar_url: string | null } })[]
     },
     staleTime: 60 * 1000,

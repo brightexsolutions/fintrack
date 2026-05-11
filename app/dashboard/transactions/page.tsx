@@ -9,13 +9,22 @@ import { TransactionForm } from '@/components/transactions/transaction-form'
 import { useTransactions } from '@/hooks/use-transactions'
 import type { TransactionFilters } from '@/hooks/use-transactions'
 import type { Transaction } from '@/types/database'
+import { useWorkspaceStore } from '@/stores/workspace-store'
+import { useWorkspaces } from '@/hooks/use-workspace'
 
 export default function TransactionsPage() {
   const [filters, setFilters] = useState<TransactionFilters>({ type: 'all' })
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Transaction | null>(null)
 
-  const { data: transactions = [], isLoading } = useTransactions(filters)
+  const { activeWorkspaceId } = useWorkspaceStore()
+  const { data: workspaces = [] } = useWorkspaces()
+  const activeWs = workspaces.find((w) => w.id === activeWorkspaceId)
+
+  const { data: transactions = [], isLoading } = useTransactions({
+    ...filters,
+    workspace_id: activeWorkspaceId ?? undefined,
+  })
 
   function handleEdit(tx: Transaction) {
     setEditing(tx)
@@ -34,6 +43,7 @@ export default function TransactionsPage() {
         <div>
           <h1 className="text-xl font-bold">Transactions</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
+            {activeWs ? <span className="text-emerald-600 font-medium">{activeWs.name}</span> : 'Personal'}{' · '}
             {isLoading ? 'Loading...' : `${transactions.length} transaction${transactions.length !== 1 ? 's' : ''}`}
           </p>
         </div>

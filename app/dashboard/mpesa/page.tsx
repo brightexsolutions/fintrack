@@ -8,10 +8,12 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { useParseMpesaSms, useImportMpesaTransactions } from '@/hooks/use-mpesa'
 import { useCategories } from '@/hooks/use-transactions'
-import { formatKES, formatDate } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
+import { useCurrency } from '@/hooks/use-currency'
 import type { ParsedMpesaTransaction } from '@/lib/mpesa/parser'
 
 export default function MpesaPage() {
+  const { format } = useCurrency()
   const router = useRouter()
   const [smsText, setSmsText] = useState('')
   const [parsed, setParsed] = useState<ParsedMpesaTransaction[] | null>(null)
@@ -160,7 +162,7 @@ export default function MpesaPage() {
                           )}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums text-xs font-medium">
-                          {formatKES(tx.amount)}
+                          {format(tx.amount)}
                         </td>
                         <td className="px-3 py-2 text-xs text-muted-foreground hidden sm:table-cell">
                           {tx.timestamp ? formatDate(tx.timestamp) : '—'}

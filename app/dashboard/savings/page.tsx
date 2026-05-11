@@ -11,10 +11,11 @@ import { GoalCard } from '@/components/savings/goal-card'
 import { GoalForm } from '@/components/savings/goal-form'
 import { ContributionForm } from '@/components/savings/contribution-form'
 import { useSavingsGoals, useDeleteSavingsGoal } from '@/hooks/use-savings'
-import { formatKES } from '@/lib/utils'
+import { useCurrency } from '@/hooks/use-currency'
 import type { SavingsGoal } from '@/types/database'
 
 export default function SavingsPage() {
+  const { format } = useCurrency()
   const [formOpen, setFormOpen] = useState(false)
   const [contributeTarget, setContributeTarget] = useState<SavingsGoal | null>(null)
   const [editing, setEditing] = useState<SavingsGoal | null>(null)
@@ -68,9 +69,9 @@ export default function SavingsPage() {
       {!isLoading && active.length > 0 && (
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label: 'Total saved', value: formatKES(totalSaved) },
-            { label: 'Total target', value: formatKES(totalTarget) },
-            { label: 'Still needed', value: formatKES(Math.max(totalTarget - totalSaved, 0)) },
+            { label: 'Total saved', value: format(totalSaved) },
+            { label: 'Total target', value: format(totalTarget) },
+            { label: 'Still needed', value: format(Math.max(totalTarget - totalSaved, 0)) },
           ].map(({ label, value }) => (
             <div key={label} className="rounded-xl border border-border bg-card p-3 text-center">
               <p className="text-xs text-muted-foreground">{label}</p>

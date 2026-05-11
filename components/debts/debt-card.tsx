@@ -5,7 +5,8 @@ import { Badge } from '@/components/ui/badge'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { formatKES, daysUntil } from '@/lib/utils'
+import { daysUntil } from '@/lib/utils'
+import { useCurrency } from '@/hooks/use-currency'
 import type { Debt } from '@/types/database'
 
 interface DebtCardProps {
@@ -16,6 +17,7 @@ interface DebtCardProps {
 }
 
 export function DebtCard({ debt, onEdit, onDelete, onLogPayment }: DebtCardProps) {
+  const { format } = useCurrency()
   const paidPct = Math.min((debt.amount_paid / debt.amount) * 100, 100)
   const remaining = debt.amount - debt.amount_paid
   const isPaid = debt.status === 'paid'
@@ -73,8 +75,8 @@ export function DebtCard({ debt, onEdit, onDelete, onLogPayment }: DebtCardProps
       {/* Amounts */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between text-xs">
-          <span className="font-semibold tabular-nums text-sm">{formatKES(debt.amount_paid)}</span>
-          <span className="text-muted-foreground tabular-nums">of {formatKES(debt.amount)}</span>
+          <span className="font-semibold tabular-nums text-sm">{format(debt.amount_paid)}</span>
+          <span className="text-muted-foreground tabular-nums">of {format(debt.amount)}</span>
         </div>
         <div className="h-2 rounded-full bg-muted overflow-hidden">
           <div
@@ -84,7 +86,7 @@ export function DebtCard({ debt, onEdit, onDelete, onLogPayment }: DebtCardProps
         </div>
         {!isPaid && (
           <p className="text-xs text-muted-foreground text-right tabular-nums">
-            {formatKES(remaining)} remaining
+            {format(remaining)} remaining
           </p>
         )}
       </div>
