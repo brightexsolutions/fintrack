@@ -11,7 +11,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog'
-import { formatDate } from '@/lib/utils'
+import { formatDate, getInitials } from '@/lib/utils'
 import { useCurrency } from '@/hooks/use-currency'
 import { useDeleteTransaction } from '@/hooks/use-transactions'
 import type { Transaction } from '@/types/database'
@@ -20,9 +20,10 @@ interface TransactionListProps {
   transactions: Transaction[]
   loading?: boolean
   onEdit: (tx: Transaction) => void
+  memberMap?: Map<string, { name: string; email: string }>
 }
 
-export function TransactionList({ transactions, loading, onEdit }: TransactionListProps) {
+export function TransactionList({ transactions, loading, onEdit, memberMap }: TransactionListProps) {
   const [deleteTarget, setDeleteTarget] = useState<Transaction | null>(null)
   const deleteMutation = useDeleteTransaction()
   const { format } = useCurrency()
@@ -94,6 +95,14 @@ export function TransactionList({ transactions, loading, onEdit }: TransactionLi
                 <span className="text-xs text-muted-foreground">{tx.payment_method}</span>
                 {tx.mpesa_ref && (
                   <span className="text-xs text-muted-foreground font-mono">{tx.mpesa_ref}</span>
+                )}
+                {memberMap && tx.user_id && memberMap.has(tx.user_id) && (
+                  <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">
+                    <span className="h-3.5 w-3.5 rounded-full bg-primary/20 text-primary inline-flex items-center justify-center font-semibold text-[9px] shrink-0">
+                      {getInitials(memberMap.get(tx.user_id)!.name || memberMap.get(tx.user_id)!.email)}
+                    </span>
+                    {memberMap.get(tx.user_id)!.name || memberMap.get(tx.user_id)!.email.split('@')[0]}
+                  </span>
                 )}
               </div>
             </div>

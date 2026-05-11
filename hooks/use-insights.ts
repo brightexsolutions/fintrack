@@ -8,6 +8,7 @@ import { startOfMonth, endOfMonth, subMonths, format, parseISO, startOfDay, endO
 export interface InsightFilters {
   dateFrom: string
   dateTo: string
+  workspace_id?: string | null
 }
 
 export interface MonthlyTrend {
@@ -42,15 +43,21 @@ export function useInsightTransactions(filters: InsightFilters) {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return []
 
-      const { data, error } = await supabase
+      let query = supabase
         .from('transactions')
         .select('*, category:categories(id, name, color, icon)')
-        .eq('user_id', user.id)
         .eq('status', 'completed')
         .gte('transaction_date', startOfDay(parseISO(filters.dateFrom)).toISOString())
         .lte('transaction_date', endOfDay(parseISO(filters.dateTo)).toISOString())
         .order('transaction_date', { ascending: true })
 
+      if (filters.workspace_id) {
+        query = query.eq('workspace_id', filters.workspace_id)
+      } else {
+        query = query.eq('user_id', user.id)
+      }
+
+      const { data, error } = await query
       if (error) throw error
       return (data ?? []) as unknown as Transaction[]
     },
@@ -59,9 +66,9 @@ export function useInsightTransactions(filters: InsightFilters) {
   })
 }
 
-export function useMonthlyTrend() {
+export function useMonthlyTrend(workspaceId?: string | null) {
   return useQuery({
-    queryKey: ['monthly_trend'],
+    queryKey: ['monthly_trend', workspaceId ?? 'personal'],
     queryFn: async () => {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
@@ -74,14 +81,20 @@ export function useMonthlyTrend() {
         const from = startOfMonth(d).toISOString()
         const to = endOfMonth(d).toISOString()
 
-        const { data } = await supabase
+        let q = supabase
           .from('transactions')
           .select('type, amount')
-          .eq('user_id', user.id)
           .eq('status', 'completed')
           .gte('transaction_date', from)
           .lte('transaction_date', to)
 
+        if (workspaceId) {
+          q = q.eq('workspace_id', workspaceId)
+        } else {
+          q = q.eq('user_id', user.id)
+        }
+
+        const { data } = await q
         const income = (data ?? []).filter((t) => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0)
         const expenses = (data ?? []).filter((t) => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0)
 

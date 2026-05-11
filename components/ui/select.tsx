@@ -14,6 +14,7 @@ type SelectCtx = {
   setOpen: React.Dispatch<React.SetStateAction<boolean>>
   triggerRef: React.MutableRefObject<HTMLButtonElement | null>
   labels: React.MutableRefObject<Map<string, string>>
+  notifyLabelChange: () => void
 }
 
 const SelectContext = React.createContext<SelectCtx | null>(null)
@@ -53,8 +54,11 @@ function Select({
   const [internal, setInternal] = React.useState(defaultValue)
   const current = controlled ? (value ?? "") : internal
   const [open, setOpen] = React.useState(false)
+  const [, setLabelVersion] = React.useState(0)
   const triggerRef = React.useRef<HTMLButtonElement | null>(null)
   const labels = React.useRef(new Map<string, string>())
+
+  const notifyLabelChange = React.useCallback(() => setLabelVersion((v) => v + 1), [])
 
   const handleChange = React.useCallback(
     (v: string) => {
@@ -67,7 +71,7 @@ function Select({
 
   return (
     <SelectContext.Provider
-      value={{ value: current, onChange: handleChange, open, setOpen, triggerRef, labels }}
+      value={{ value: current, onChange: handleChange, open, setOpen, triggerRef, labels, notifyLabelChange }}
     >
       {children}
     </SelectContext.Provider>
@@ -255,9 +259,14 @@ const SelectItem = React.forwardRef<HTMLDivElement, SelectItemProps>(
 
     React.useEffect(() => {
       const text = extractText(children)
-      if (text) ctx.labels.current.set(value, text)
-      return () => { ctx.labels.current.delete(value) }
-    })
+      if (text) {
+        ctx.labels.current.set(value, text)
+        // Trigger SelectValue re-render so it can display the label after items mount.
+        ctx.notifyLabelChange()
+      }
+      // No cleanup — labels persist for the Select lifetime so SelectValue
+      // can display the label even when SelectContent is unmounted (dropdown closed).
+    }, [value, children, ctx.labels, ctx.notifyLabelChange])
 
     return (
       <div
