@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Plus, Users, Mail, Trash2, Crown, ShieldCheck, Edit2, Eye, Link2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Plus, Users, Mail, Trash2, Crown, ShieldCheck, Edit2, Eye, Link2, Settings2, ArrowLeftRight, PiggyBank, CreditCard, Target } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,12 +16,14 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
-  useWorkspaces, useCreateWorkspace, useDeleteWorkspace,
+  useWorkspaces, useCreateWorkspace, useDeleteWorkspace, useUpdateWorkspace,
   useWorkspaceMembers, useWorkspaceInvitations, useInviteMember, useRemoveMember, useCancelInvitation,
 } from '@/hooks/use-workspace'
 import { workspaceSchema, inviteSchema, type WorkspaceFormData, type InviteFormData } from '@/lib/validations/workspace'
 import { getInitials } from '@/lib/utils'
-import type { Workspace } from '@/types/database'
+import { createClient } from '@/lib/supabase/client'
+import type { Workspace, WorkspaceVisibleModules } from '@/types/database'
+import { DEFAULT_VISIBLE_MODULES } from '@/types/database'
 
 const ROLE_CONFIG = {
   owner:  { label: 'Owner',  icon: Crown,       className: 'bg-amber-500/10 text-amber-700 border-amber-500/20 dark:text-amber-400' },
@@ -30,21 +32,39 @@ const ROLE_CONFIG = {
   viewer: { label: 'Viewer', icon: Eye,          className: 'bg-muted text-muted-foreground' },
 }
 
+const MODULE_OPTIONS: { key: keyof WorkspaceVisibleModules; label: string; icon: React.ElementType }[] = [
+  { key: 'transactions', label: 'Transactions', icon: ArrowLeftRight },
+  { key: 'budgets',      label: 'Budgets',      icon: PiggyBank },
+  { key: 'debts',        label: 'Debts',        icon: CreditCard },
+  { key: 'savings',      label: 'Savings',      icon: Target },
+]
+
 export default function WorkspacePage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [selectedWs, setSelectedWs] = useState<Workspace | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Workspace | null>(null)
   const [inviteOpen, setInviteOpen] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+
+  useEffect(() => {
+    createClient().auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null))
+  }, [])
 
   const { data: workspaces = [], isLoading } = useWorkspaces()
   const createWs = useCreateWorkspace()
   const deleteWs = useDeleteWorkspace()
+  const updateWs = useUpdateWorkspace()
 
   const { data: members = [] } = useWorkspaceMembers(selectedWs?.id ?? null)
   const { data: invitations = [] } = useWorkspaceInvitations(selectedWs?.id ?? null)
   const removeMember = useRemoveMember()
   const cancelInvitation = useCancelInvitation()
   const inviteMember = useInviteMember()
+
+  // Current user's role in the selected workspace
+  const myRole = currentUserId ? (members.find((m) => m.user_id === currentUserId)?.role ?? null) : null
+  const isOwner = myRole === 'owner'
+  const canInvite = myRole === 'owner' || myRole === 'admin'
 
   const { register: regWs, handleSubmit: handleWsSubmit, reset: resetWs, formState: { errors: wsErrors } } = useForm<WorkspaceFormData>({
     resolver: zodResolver(workspaceSchema) as Resolver<WorkspaceFormData>,
@@ -122,14 +142,16 @@ export default function WorkspacePage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-medium">Members</p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs gap-1"
-                    onClick={() => setInviteOpen(true)}
-                  >
-                    <Mail className="h-3 w-3" /> Invite
-                  </Button>
+                  {canInvite && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1"
+                      onClick={() => setInviteOpen(true)}
+                    >
+                      <Mail className="h-3 w-3" /> Invite
+                    </Button>
+                  )}
                 </div>
                 {members.map((m) => {
                   const rc = ROLE_CONFIG[m.role as keyof typeof ROLE_CONFIG] ?? ROLE_CONFIG.viewer
@@ -180,7 +202,6 @@ export default function WorkspacePage() {
                           onClick={() => {
                             const link = `${window.location.origin}/invite/${inv.token}`
                             navigator.clipboard.writeText(link)
-                            // toast is handled by the copy
                           }}
                         >
                           <Link2 className="h-3 w-3" /> Copy link
@@ -196,6 +217,44 @@ export default function WorkspacePage() {
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* Visibility controls — owner only */}
+              {isOwner && (
+                <div className="space-y-2 pt-2 border-t border-border">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Settings2 className="h-3.5 w-3.5 text-muted-foreground" />
+                    <p className="text-sm font-medium">Shared modules</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground -mt-1">Choose what members can access in this workspace.</p>
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    {MODULE_OPTIONS.map(({ key, label, icon: ModIcon }) => {
+                      const currentModules = ws.visible_modules ?? DEFAULT_VISIBLE_MODULES
+                      const enabled = currentModules[key] !== false
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => {
+                            const updated = { ...currentModules, [key]: !enabled }
+                            updateWs.mutate({ id: ws.id, updates: { visible_modules: updated } })
+                          }}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
+                            enabled
+                              ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                              : 'border-border bg-muted/30 text-muted-foreground'
+                          }`}
+                        >
+                          <ModIcon className="h-3.5 w-3.5 shrink-0" />
+                          {label}
+                          <span className={`ml-auto text-[10px] ${enabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>
+                            {enabled ? 'On' : 'Off'}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
               )}
             </div>
@@ -242,7 +301,7 @@ export default function WorkspacePage() {
               <Select defaultValue="editor" onValueChange={(v) => v && setInvVal('role', v as InviteFormData['role'])}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="admin">Admin — full access</SelectItem>
+                  {isOwner && <SelectItem value="admin">Admin — invite & manage</SelectItem>}
                   <SelectItem value="editor">Editor — add & edit</SelectItem>
                   <SelectItem value="viewer">Viewer — read only</SelectItem>
                 </SelectContent>

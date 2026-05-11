@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { Menu, LayoutDashboard, ArrowLeftRight, PiggyBank, CreditCard, Target, BarChart3, Smartphone, Users, Settings, LogOut, RefreshCw } from 'lucide-react'
@@ -7,14 +8,22 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { useEffect, useState } from 'react'
+import { useActiveWorkspace } from '@/hooks/use-workspace'
+import { DEFAULT_VISIBLE_MODULES } from '@/types/database'
 
-const navItems = [
+type NavItem = {
+  href: string
+  label: string
+  icon: React.ElementType
+  moduleKey?: keyof typeof DEFAULT_VISIBLE_MODULES
+}
+
+const navItems: NavItem[] = [
   { href: '/dashboard',              label: 'Dashboard',    icon: LayoutDashboard },
-  { href: '/dashboard/transactions', label: 'Transactions', icon: ArrowLeftRight },
-  { href: '/dashboard/budgets',      label: 'Budgets',      icon: PiggyBank },
-  { href: '/dashboard/debts',        label: 'Debts',        icon: CreditCard },
-  { href: '/dashboard/savings',      label: 'Savings',      icon: Target },
+  { href: '/dashboard/transactions', label: 'Transactions', icon: ArrowLeftRight,  moduleKey: 'transactions' },
+  { href: '/dashboard/budgets',      label: 'Budgets',      icon: PiggyBank,        moduleKey: 'budgets' },
+  { href: '/dashboard/debts',        label: 'Debts',        icon: CreditCard,       moduleKey: 'debts' },
+  { href: '/dashboard/savings',      label: 'Savings',      icon: Target,           moduleKey: 'savings' },
   { href: '/dashboard/subscriptions', label: 'Subscriptions',icon: RefreshCw },
   { href: '/dashboard/insights',     label: 'Insights',     icon: BarChart3 },
   { href: '/dashboard/mpesa',        label: 'M-Pesa Import',icon: Smartphone },
@@ -26,6 +35,13 @@ export function MobileNav() {
   const pathname = usePathname()
   const router = useRouter()
   const [open, setOpen] = useState(false)
+  const activeWorkspace = useActiveWorkspace()
+  const visibleModules = activeWorkspace?.visible_modules ?? DEFAULT_VISIBLE_MODULES
+
+  const visibleNavItems = navItems.filter(({ moduleKey }) => {
+    if (!moduleKey || !activeWorkspace) return true
+    return visibleModules[moduleKey] !== false
+  })
 
   useEffect(() => {
     navItems.forEach(({ href }) => router.prefetch(href))
@@ -55,7 +71,7 @@ export function MobileNav() {
             <span className="font-bold text-base">FinTrack</span>
           </div>
           <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
-            {navItems.map(({ href, label, icon: Icon }) => {
+            {visibleNavItems.map(({ href, label, icon: Icon }) => {
               const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
               return (
                 <Link

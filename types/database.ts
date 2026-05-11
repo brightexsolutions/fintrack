@@ -34,12 +34,27 @@ export interface Profile {
   updated_at: string
 }
 
+export interface WorkspaceVisibleModules {
+  transactions: boolean
+  budgets: boolean
+  debts: boolean
+  savings: boolean
+}
+
+export const DEFAULT_VISIBLE_MODULES: WorkspaceVisibleModules = {
+  transactions: true,
+  budgets: true,
+  debts: true,
+  savings: true,
+}
+
 export interface Workspace {
   id: string
   name: string
   description: string | null
   owner_id: string
   currency: string
+  visible_modules: WorkspaceVisibleModules | null
   created_at: string
   updated_at: string
 }

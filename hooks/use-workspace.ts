@@ -1,9 +1,11 @@
 'use client'
 
+import React from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import type { Workspace, WorkspaceMember, WorkspaceInvitation } from '@/types/database'
+import { useWorkspaceStore } from '@/stores/workspace-store'
+import type { Workspace, WorkspaceMember, WorkspaceInvitation, WorkspaceVisibleModules } from '@/types/database'
 import type { WorkspaceFormData, InviteFormData } from '@/lib/validations/workspace'
 
 export function useWorkspaces() {
@@ -181,4 +183,46 @@ export function useCancelInvitation() {
     },
     onError: (err: Error) => toast.error(err.message),
   })
+}
+
+export function useUpdateWorkspace() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: { name?: string; description?: string | null; visible_modules?: WorkspaceVisibleModules } }) => {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from('workspaces')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single()
+      if (error) throw error
+      return data as Workspace
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workspaces'] })
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+}
+
+// Returns the active workspace object (null = personal mode)
+export function useActiveWorkspace(): Workspace | null {
+  const { activeWorkspaceId } = useWorkspaceStore()
+  const { data: workspaces = [] } = useWorkspaces()
+  if (!activeWorkspaceId) return null
+  return workspaces.find((w) => w.id === activeWorkspaceId) ?? null
+}
+
+// Returns the current user's role in the given workspace
+export function useMyWorkspaceRole(workspaceId: string | null): WorkspaceMember['role'] | null {
+  const { data: members = [] } = useWorkspaceMembers(workspaceId)
+  const [userId, setUserId] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    createClient().auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
+  }, [])
+
+  if (!workspaceId || !userId) return null
+  return members.find((m) => m.user_id === userId)?.role ?? null
 }

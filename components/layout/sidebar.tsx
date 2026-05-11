@@ -11,13 +11,22 @@ import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { useActiveWorkspace } from '@/hooks/use-workspace'
+import { DEFAULT_VISIBLE_MODULES } from '@/types/database'
 
-const navItems = [
+type NavItem = {
+  href: string
+  label: string
+  icon: React.ElementType
+  moduleKey?: keyof typeof DEFAULT_VISIBLE_MODULES
+}
+
+const navItems: NavItem[] = [
   { href: '/dashboard',             label: 'Dashboard',    icon: LayoutDashboard },
-  { href: '/dashboard/transactions',label: 'Transactions', icon: ArrowLeftRight },
-  { href: '/dashboard/budgets',     label: 'Budgets',      icon: PiggyBank },
-  { href: '/dashboard/debts',       label: 'Debts',        icon: CreditCard },
-  { href: '/dashboard/savings',     label: 'Savings',      icon: Target },
+  { href: '/dashboard/transactions',label: 'Transactions', icon: ArrowLeftRight, moduleKey: 'transactions' },
+  { href: '/dashboard/budgets',     label: 'Budgets',      icon: PiggyBank,       moduleKey: 'budgets' },
+  { href: '/dashboard/debts',       label: 'Debts',        icon: CreditCard,      moduleKey: 'debts' },
+  { href: '/dashboard/savings',     label: 'Savings',      icon: Target,          moduleKey: 'savings' },
   { href: '/dashboard/subscriptions',label: 'Subscriptions',icon: RefreshCw },
   { href: '/dashboard/insights',    label: 'Insights',     icon: BarChart3 },
   { href: '/dashboard/mpesa',       label: 'M-Pesa Import',icon: Smartphone },
@@ -27,6 +36,15 @@ const navItems = [
 export function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
+  const activeWorkspace = useActiveWorkspace()
+  const visibleModules = activeWorkspace?.visible_modules ?? DEFAULT_VISIBLE_MODULES
+
+  const visibleNavItems = navItems.filter(({ moduleKey }) => {
+    if (!moduleKey) return true
+    // In personal mode (no active workspace) always show all; in workspace mode, respect visible_modules
+    if (!activeWorkspace) return true
+    return visibleModules[moduleKey] !== false
+  })
 
   useEffect(() => {
     navItems.forEach(({ href }) => router.prefetch(href))
@@ -53,7 +71,7 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 space-y-0.5">
-        {navItems.map(({ href, label, icon: Icon }) => {
+        {visibleNavItems.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
           return (
             <Link
