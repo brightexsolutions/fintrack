@@ -41,6 +41,7 @@ export function useSubscriptions() {
       if (error) throw error
       return (data ?? []) as unknown as Subscription[]
     },
+    staleTime: 30 * 1000,
   })
 }
 

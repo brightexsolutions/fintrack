@@ -22,6 +22,7 @@ export function usePushNotifications() {
   const [isSupported, setIsSupported] = useState(false)
   const [isSubscribed, setIsSubscribed] = useState(false)
   const [loading, setLoading] = useState(false)
+  const isConfigured = Boolean(VAPID_PUBLIC_KEY)
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window) {
@@ -36,8 +37,7 @@ export function usePushNotifications() {
   }, [])
 
   async function subscribe() {
-    if (!VAPID_PUBLIC_KEY) {
-      toast.error('Push notifications are not configured yet (missing VAPID key).')
+    if (!isConfigured) {
       return
     }
     setLoading(true)
@@ -90,5 +90,5 @@ export function usePushNotifications() {
     }
   }
 
-  return { isSupported, isSubscribed, loading, subscribe, unsubscribe }
+  return { isSupported, isConfigured, isSubscribed, loading, subscribe, unsubscribe }
 }

@@ -23,6 +23,7 @@ export function useSavingsGoals() {
       if (error) throw error
       return (data ?? []) as SavingsGoal[]
     },
+    staleTime: 30 * 1000,
   })
 }
 

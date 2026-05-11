@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2 } from 'lucide-react'
@@ -28,18 +29,27 @@ export function GoalForm({ open, onClose, editing }: GoalFormProps) {
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<SavingsGoalFormData>({
     resolver: zodResolver(savingsGoalSchema) as Resolver<SavingsGoalFormData>,
-    defaultValues: editing ? {
-      name: editing.name,
-      description: editing.description ?? '',
-      target_amount: editing.target_amount,
-      target_date: editing.target_date ?? '',
-    } : {
+    defaultValues: {
       name: '',
       description: '',
       target_amount: undefined,
       target_date: '',
     },
   })
+
+  useEffect(() => {
+    reset(editing ? {
+      name: editing.name,
+      description: editing.description ?? '',
+      target_amount: Number(editing.target_amount),
+      target_date: editing.target_date ?? '',
+    } : {
+      name: '',
+      description: '',
+      target_amount: undefined,
+      target_date: '',
+    })
+  }, [editing, open, reset])
 
   async function onSubmit(values: SavingsGoalFormData) {
     if (isEditing && editing) {
@@ -71,7 +81,15 @@ export function GoalForm({ open, onClose, editing }: GoalFormProps) {
 
           <div className="space-y-2">
             <Label htmlFor="target_amount">Target amount (KES)</Label>
-            <Input id="target_amount" type="number" step="0.01" placeholder="0.00" {...register('target_amount')} />
+            <Input
+              id="target_amount"
+              type="number"
+              step="0.01"
+              placeholder="0.00"
+              {...register('target_amount', {
+                setValueAs: (value) => value === '' ? undefined : Number(value),
+              })}
+            />
             {errors.target_amount && <p className="text-sm text-destructive">{errors.target_amount.message}</p>}
           </div>
 

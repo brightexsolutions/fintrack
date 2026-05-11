@@ -43,7 +43,7 @@ export default function SettingsPage() {
   const { data: profile, isLoading } = useProfile()
   const updateProfile = useUpdateProfile()
   const { theme, setTheme } = useTheme()
-  const { isSubscribed, isSupported, subscribe, unsubscribe, loading: pushLoading } = usePushNotifications()
+  const { isSubscribed, isSupported, isConfigured, subscribe, unsubscribe, loading: pushLoading } = usePushNotifications()
 
   const [fullName, setFullName] = useState('')
   const [currency, setCurrency] = useState('KES')
@@ -204,6 +204,8 @@ export default function SettingsPage() {
                 <p className="text-xs text-muted-foreground">
                   {!isSupported
                     ? 'Not supported in this browser'
+                    : !isConfigured
+                      ? 'Configure NEXT_PUBLIC_VAPID_PUBLIC_KEY to enable web push'
                     : isSubscribed
                       ? 'Enabled — you will receive push alerts'
                       : 'Enable to receive alerts even when the app is closed'}
@@ -212,7 +214,7 @@ export default function SettingsPage() {
               {isSupported && (
                 <Switch
                   checked={isSubscribed}
-                  disabled={pushLoading}
+                  disabled={pushLoading || !isConfigured}
                   onCheckedChange={(v) => v ? subscribe() : unsubscribe()}
                 />
               )}

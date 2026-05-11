@@ -1,64 +1,49 @@
-import { createClient } from '@/lib/supabase/server'
-import { startOfMonth, endOfMonth, subMonths, format } from 'date-fns'
+'use client'
+
+import { useMemo } from 'react'
+import { startOfMonth, endOfMonth, format } from 'date-fns'
 import { SummaryCards } from '@/components/dashboard/summary-cards'
 import { IncomeExpenseChart } from '@/components/dashboard/income-expense-chart'
 import { RecentTransactions } from '@/components/dashboard/recent-transactions'
-import type { Transaction } from '@/types/database'
+import { useTransactions } from '@/hooks/use-transactions'
+import { useMonthlyTrend } from '@/hooks/use-insights'
 
-type TxRow = { type: string; amount: number }
-
-export default async function DashboardPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-
+export default function DashboardPage() {
   const now = new Date()
   const monthStart = startOfMonth(now).toISOString()
   const monthEnd = endOfMonth(now).toISOString()
 
-  // Current month transactions with category join
-  const { data: rawTx } = await supabase
-    .from('transactions')
-    .select(`
-      id, type, amount, currency, description, transaction_date, payment_method,
-      status, mpesa_ref, counterparty, category_id,
-      category:categories(id, name, color, icon)
-    `)
-    .eq('user_id', user.id)
-    .eq('status', 'completed')
-    .gte('transaction_date', monthStart)
-    .lte('transaction_date', monthEnd)
-    .order('transaction_date', { ascending: false })
+  // All-time transactions for balance + recent list
+  const { data: allTx = [], isLoading: allLoading } = useTransactions()
 
-  const monthTx = (rawTx ?? []) as unknown as Transaction[]
+  // Current-month transactions for monthly income/expense cards
+  const { data: monthTx = [] } = useTransactions({
+    dateFrom: monthStart,
+    dateTo: monthEnd,
+  })
 
-  const totalIncome   = monthTx.filter((t) => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0)
-  const totalExpenses = monthTx.filter((t) => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0)
-  const recent        = monthTx.slice(0, 8)
+  const { data: chartData = [], isLoading: chartLoading } = useMonthlyTrend()
 
-  // Last 6 months for chart (sequential to reuse single client)
-  const chartData = await Promise.all(
-    Array.from({ length: 6 }, (_, i) => {
-      const d = subMonths(now, 5 - i)
-      return {
-        month: format(d, 'yyyy-MM'),
-        start: startOfMonth(d).toISOString(),
-        end:   endOfMonth(d).toISOString(),
-      }
-    }).map(async ({ month, start, end }) => {
-      const { data } = await supabase
-        .from('transactions')
-        .select('type, amount')
-        .eq('user_id', user.id)
-        .eq('status', 'completed')
-        .gte('transaction_date', start)
-        .lte('transaction_date', end)
+  const totalBalance = useMemo(
+    () => allTx
+      .filter((t) => t.status === 'completed')
+      .reduce((s, t) => s + (t.type === 'income' ? Number(t.amount) : -Number(t.amount)), 0),
+    [allTx]
+  )
 
-      const rows = (data ?? []) as TxRow[]
-      const income   = rows.filter((t) => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0)
-      const expenses = rows.filter((t) => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0)
-      return { month, income, expenses }
-    })
+  const monthlyIncome = useMemo(
+    () => monthTx.filter((t) => t.status === 'completed' && t.type === 'income').reduce((s, t) => s + Number(t.amount), 0),
+    [monthTx]
+  )
+
+  const monthlyExpenses = useMemo(
+    () => monthTx.filter((t) => t.status === 'completed' && t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0),
+    [monthTx]
+  )
+
+  const recent = useMemo(
+    () => allTx.filter((t) => t.status === 'completed').slice(0, 8),
+    [allTx]
   )
 
   return (
@@ -68,14 +53,19 @@ export default async function DashboardPage() {
         <p className="text-sm text-muted-foreground">{format(now, 'MMMM yyyy')} overview</p>
       </div>
 
-      <SummaryCards totalIncome={totalIncome} totalExpenses={totalExpenses} />
+      <SummaryCards
+        totalBalance={totalBalance}
+        monthlyIncome={monthlyIncome}
+        monthlyExpenses={monthlyExpenses}
+        loading={allLoading}
+      />
 
       <div className="grid lg:grid-cols-5 gap-4">
         <div className="lg:col-span-3">
-          <IncomeExpenseChart data={chartData} />
+          <IncomeExpenseChart data={chartData} loading={chartLoading} />
         </div>
         <div className="lg:col-span-2">
-          <RecentTransactions transactions={recent} />
+          <RecentTransactions transactions={recent} loading={allLoading} />
         </div>
       </div>
     </div>

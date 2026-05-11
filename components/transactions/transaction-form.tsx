@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { format } from 'date-fns'
@@ -19,6 +20,7 @@ import { useCreateTransaction, useUpdateTransaction, useCategories } from '@/hoo
 import type { Transaction } from '@/types/database'
 
 const PAYMENT_METHODS = ['M-Pesa', 'Cash', 'Bank Transfer', 'Credit Card', 'Debit Card', 'Cheque', 'Other']
+const EMPTY_CATEGORY_VALUE = '__no_category__'
 
 interface TransactionFormProps {
   open: boolean
@@ -36,9 +38,27 @@ export function TransactionForm({ open, onClose, editing }: TransactionFormProps
 
   const { register, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm<TransactionFormData>({
     resolver: zodResolver(transactionSchema) as Resolver<TransactionFormData>,
-    defaultValues: editing ? {
+    defaultValues: {
+      type: 'expense',
+      amount: undefined,
+      description: '',
+      category_id: '',
+      payment_method: 'M-Pesa',
+      transaction_date: format(new Date(), 'yyyy-MM-dd'),
+      notes: '',
+      status: 'completed',
+    },
+  })
+
+  const txType = watch('type')
+  const categoryId = watch('category_id')
+  const paymentMethod = watch('payment_method')
+  const filteredCategories = categories.filter((c) => c.type === txType || c.type === 'both')
+
+  useEffect(() => {
+    reset(editing ? {
       type: editing.type,
-      amount: editing.amount,
+      amount: Number(editing.amount),
       description: editing.description,
       category_id: editing.category_id ?? '',
       payment_method: editing.payment_method,
@@ -47,14 +67,15 @@ export function TransactionForm({ open, onClose, editing }: TransactionFormProps
       status: editing.status,
     } : {
       type: 'expense',
+      amount: undefined,
+      description: '',
+      category_id: '',
       payment_method: 'M-Pesa',
       transaction_date: format(new Date(), 'yyyy-MM-dd'),
+      notes: '',
       status: 'completed',
-    },
-  })
-
-  const txType = watch('type')
-  const filteredCategories = categories.filter((c) => c.type === txType || c.type === 'both')
+    })
+  }, [editing, open, reset])
 
   async function onSubmit(values: TransactionFormData) {
     if (isEditing && editing) {
@@ -100,7 +121,15 @@ export function TransactionForm({ open, onClose, editing }: TransactionFormProps
 
           <div className="space-y-2">
             <Label htmlFor="amount">Amount (KES)</Label>
-            <Input id="amount" type="number" step="0.01" placeholder="0.00" {...register('amount')} />
+            <Input
+              id="amount"
+              type="number"
+              step="0.01"
+              placeholder="0.00"
+              {...register('amount', {
+                setValueAs: (value) => value === '' ? undefined : Number(value),
+              })}
+            />
             {errors.amount && <p className="text-sm text-destructive">{errors.amount.message}</p>}
           </div>
 
@@ -113,11 +142,15 @@ export function TransactionForm({ open, onClose, editing }: TransactionFormProps
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>Category</Label>
-              <Select onValueChange={(v) => setValue('category_id', v ?? '')} defaultValue={editing?.category_id ?? ''}>
+              <Select
+                value={categoryId || EMPTY_CATEGORY_VALUE}
+                onValueChange={(v) => setValue('category_id', v === EMPTY_CATEGORY_VALUE ? '' : (v ?? ''))}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value={EMPTY_CATEGORY_VALUE}>No category</SelectItem>
                   {filteredCategories.map((cat) => (
                     <SelectItem key={cat.id} value={cat.id}>
                       {cat.name}
@@ -128,7 +161,7 @@ export function TransactionForm({ open, onClose, editing }: TransactionFormProps
             </div>
             <div className="space-y-2">
               <Label>Payment method</Label>
-              <Select onValueChange={(v) => setValue('payment_method', v ?? 'M-Pesa')} defaultValue={editing?.payment_method ?? 'M-Pesa'}>
+              <Select value={paymentMethod} onValueChange={(v) => setValue('payment_method', v ?? 'M-Pesa')}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>

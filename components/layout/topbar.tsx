@@ -13,22 +13,12 @@ import { getInitials } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { useEffect, useState } from 'react'
-import type { Profile } from '@/types/database'
+import { useProfile } from '@/hooks/use-profile'
 
 export function Topbar() {
   const { theme, setTheme } = useTheme()
   const router = useRouter()
-  const [profile, setProfile] = useState<Profile | null>(null)
-
-  useEffect(() => {
-    const supabase = createClient()
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return
-      supabase.from('profiles').select('*').eq('id', user.id).single()
-        .then(({ data }) => setProfile(data))
-    })
-  }, [])
+  const { data: profile } = useProfile()
 
   async function handleSignOut() {
     const supabase = createClient()

@@ -23,6 +23,7 @@ export function useDebts() {
       if (error) throw error
       return (data ?? []) as Debt[]
     },
+    staleTime: 30 * 1000,
   })
 }
 
