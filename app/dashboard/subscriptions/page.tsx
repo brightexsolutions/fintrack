@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Plus, RefreshCw, ExternalLink, Trash2, Pencil, CheckCircle, AlertTriangle, Bell } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -24,6 +24,8 @@ import { subscriptionSchema, type SubscriptionFormData } from '@/lib/validations
 import { formatKES, formatDate } from '@/lib/utils'
 import { parseISO, differenceInDays } from 'date-fns'
 import type { Subscription } from '@/types/database'
+
+const EMPTY_CATEGORY_VALUE = '__no_category__'
 
 const CYCLE_LABELS: Record<string, string> = {
   weekly: 'Weekly',
@@ -128,31 +130,53 @@ export default function SubscriptionsPage() {
   const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<SubscriptionFormData>({
     resolver: zodResolver(subscriptionSchema) as Resolver<SubscriptionFormData>,
     defaultValues: {
-      name: '', description: '', amount: 0, billing_cycle: 'monthly',
-      next_billing_date: '', color: '#6366F1', reminder_days: 3,
+      name: '',
+      description: '',
+      amount: undefined,
+      billing_cycle: 'monthly',
+      next_billing_date: '',
+      category_id: '',
+      url: '',
+      color: '#6366F1',
+      reminder_days: 3,
     },
   })
 
   const selectedColor = watch('color')
+  const billingCycle = watch('billing_cycle')
+  const categoryId = watch('category_id')
+
+  useEffect(() => {
+    if (!formOpen) return
+    reset(editing ? {
+      name: editing.name,
+      description: editing.description ?? '',
+      amount: Number(editing.amount),
+      billing_cycle: editing.billing_cycle,
+      next_billing_date: editing.next_billing_date,
+      category_id: editing.category_id ?? '',
+      url: editing.url ?? '',
+      color: editing.color,
+      reminder_days: Number(editing.reminder_days),
+    } : {
+      name: '',
+      description: '',
+      amount: undefined,
+      billing_cycle: 'monthly',
+      next_billing_date: '',
+      category_id: '',
+      url: '',
+      color: '#6366F1',
+      reminder_days: 3,
+    })
+  }, [editing, formOpen, reset])
 
   function openCreate() {
-    reset({ name: '', description: '', amount: 0, billing_cycle: 'monthly', next_billing_date: '', color: '#6366F1', reminder_days: 3 })
     setEditing(null)
     setFormOpen(true)
   }
 
   function openEdit(sub: Subscription) {
-    reset({
-      name: sub.name,
-      description: sub.description ?? '',
-      amount: sub.amount,
-      billing_cycle: sub.billing_cycle,
-      next_billing_date: sub.next_billing_date,
-      category_id: sub.category_id ?? '',
-      url: sub.url ?? '',
-      color: sub.color,
-      reminder_days: sub.reminder_days,
-    })
     setEditing(sub)
     setFormOpen(true)
   }
@@ -262,12 +286,19 @@ export default function SubscriptionsPage() {
               </div>
               <div className="space-y-1.5">
                 <Label>Amount (Ksh)</Label>
-                <Input type="number" step="0.01" placeholder="0.00" {...register('amount')} />
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  {...register('amount', {
+                    setValueAs: (value) => value === '' ? undefined : Number(value),
+                  })}
+                />
                 {errors.amount && <p className="text-xs text-destructive">{errors.amount.message}</p>}
               </div>
               <div className="space-y-1.5">
                 <Label>Billing cycle</Label>
-                <Select defaultValue="monthly" onValueChange={(v) => v && setValue('billing_cycle', v as SubscriptionFormData['billing_cycle'])}>
+                <Select value={billingCycle} onValueChange={(v) => v && setValue('billing_cycle', v as SubscriptionFormData['billing_cycle'])}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="weekly">Weekly</SelectItem>
@@ -284,14 +315,21 @@ export default function SubscriptionsPage() {
               </div>
               <div className="space-y-1.5">
                 <Label>Remind me (days before)</Label>
-                <Input type="number" min={0} max={30} {...register('reminder_days')} />
+                <Input
+                  type="number"
+                  min={0}
+                  max={30}
+                  {...register('reminder_days', {
+                    setValueAs: (value) => value === '' ? undefined : Number(value),
+                  })}
+                />
               </div>
               <div className="col-span-2 space-y-1.5">
                 <Label>Category</Label>
-                <Select defaultValue={editing?.category_id ?? ''} onValueChange={(v) => setValue('category_id', v ?? '')}>
+                <Select value={categoryId || EMPTY_CATEGORY_VALUE} onValueChange={(v) => setValue('category_id', v === EMPTY_CATEGORY_VALUE ? '' : (v ?? ''))}>
                   <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No category</SelectItem>
+                    <SelectItem value={EMPTY_CATEGORY_VALUE}>No category</SelectItem>
                     {categories.filter((c) => c.type === 'expense' || c.type === 'both').map((c) => (
                       <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                     ))}

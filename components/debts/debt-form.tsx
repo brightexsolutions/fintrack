@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2 } from 'lucide-react'
@@ -29,22 +30,39 @@ export function DebtForm({ open, onClose, defaultType = 'i_owe', editing }: Debt
 
   const { register, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm<DebtFormData>({
     resolver: zodResolver(debtSchema) as Resolver<DebtFormData>,
-    defaultValues: editing ? {
+    defaultValues: {
+      type: defaultType,
+      contact_name: '',
+      contact_email: '',
+      contact_phone: '',
+      amount: undefined,
+      description: '',
+      due_date: '',
+      notes: '',
+    },
+  })
+
+  useEffect(() => {
+    reset(editing ? {
       type: editing.type,
       contact_name: editing.contact_name,
       contact_email: editing.contact_email ?? '',
       contact_phone: editing.contact_phone ?? '',
-      amount: editing.amount,
+      amount: Number(editing.amount),
       description: editing.description,
       due_date: editing.due_date ?? '',
       notes: editing.notes ?? '',
     } : {
       type: defaultType,
       contact_name: '',
+      contact_email: '',
+      contact_phone: '',
       amount: undefined,
       description: '',
-    },
-  })
+      due_date: '',
+      notes: '',
+    })
+  }, [defaultType, editing, open, reset])
 
   const debtType = watch('type')
 
@@ -98,7 +116,15 @@ export function DebtForm({ open, onClose, defaultType = 'i_owe', editing }: Debt
 
           <div className="space-y-2">
             <Label htmlFor="amount">Amount (KES)</Label>
-            <Input id="amount" type="number" step="0.01" placeholder="0.00" {...register('amount')} />
+            <Input
+              id="amount"
+              type="number"
+              step="0.01"
+              placeholder="0.00"
+              {...register('amount', {
+                setValueAs: (value) => value === '' ? undefined : Number(value),
+              })}
+            />
             {errors.amount && <p className="text-sm text-destructive">{errors.amount.message}</p>}
           </div>
 

@@ -62,7 +62,9 @@ export function PaymentForm({ open, onClose, debt }: PaymentFormProps) {
               type="number"
               step="0.01"
               placeholder={remaining ? String(remaining) : '0.00'}
-              {...register('amount')}
+              {...register('amount', {
+                setValueAs: (value) => value === '' ? undefined : Number(value),
+              })}
             />
             {errors.amount && <p className="text-sm text-destructive">{errors.amount.message}</p>}
           </div>

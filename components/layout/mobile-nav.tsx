@@ -7,7 +7,7 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 const navItems = [
   { href: '/dashboard',              label: 'Dashboard',    icon: LayoutDashboard },
@@ -26,6 +26,10 @@ export function MobileNav() {
   const pathname = usePathname()
   const router = useRouter()
   const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    navItems.forEach(({ href }) => router.prefetch(href))
+  }, [router])
 
   async function handleSignOut() {
     const supabase = createClient()
@@ -57,6 +61,7 @@ export function MobileNav() {
                 <Link
                   key={href}
                   href={href}
+                  prefetch
                   onClick={() => setOpen(false)}
                   className={cn(
                     'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',

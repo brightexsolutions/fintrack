@@ -55,6 +55,7 @@ export function useInsightTransactions(filters: InsightFilters) {
       return (data ?? []) as unknown as Transaction[]
     },
     enabled: !!filters.dateFrom && !!filters.dateTo,
+    staleTime: 60 * 1000,
   })
 }
 

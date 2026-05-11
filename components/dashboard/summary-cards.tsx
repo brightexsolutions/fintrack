@@ -6,27 +6,27 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { formatKES } from '@/lib/utils'
 
 interface SummaryCardsProps {
-  totalIncome: number
-  totalExpenses: number
+  totalBalance: number
+  monthlyIncome: number
+  monthlyExpenses: number
   loading?: boolean
 }
 
-export function SummaryCards({ totalIncome, totalExpenses, loading }: SummaryCardsProps) {
-  const balance = totalIncome - totalExpenses
-  const savingsRate = totalIncome > 0 ? Math.max(0, ((totalIncome - totalExpenses) / totalIncome) * 100) : 0
+export function SummaryCards({ totalBalance, monthlyIncome, monthlyExpenses, loading }: SummaryCardsProps) {
+  const savingsRate = monthlyIncome > 0 ? Math.max(0, ((monthlyIncome - monthlyExpenses) / monthlyIncome) * 100) : 0
 
   const cards = [
     {
       label: 'Total Balance',
-      value: formatKES(balance),
+      value: formatKES(totalBalance),
       icon: Wallet,
       iconBg: 'bg-emerald-500/10',
       iconColor: 'text-emerald-500',
-      valueColor: balance >= 0 ? 'text-foreground' : 'text-destructive',
+      valueColor: totalBalance >= 0 ? 'text-foreground' : 'text-destructive',
     },
     {
       label: 'Monthly Income',
-      value: formatKES(totalIncome),
+      value: formatKES(monthlyIncome),
       icon: ArrowUpRight,
       iconBg: 'bg-blue-500/10',
       iconColor: 'text-blue-500',
@@ -34,7 +34,7 @@ export function SummaryCards({ totalIncome, totalExpenses, loading }: SummaryCar
     },
     {
       label: 'Monthly Expenses',
-      value: formatKES(totalExpenses),
+      value: formatKES(monthlyExpenses),
       icon: ArrowDownRight,
       iconBg: 'bg-red-500/10',
       iconColor: 'text-red-500',

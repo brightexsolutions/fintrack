@@ -14,6 +14,14 @@ export interface TransactionFilters {
   dateTo?: string
 }
 
+function invalidateFinanceQueries(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: ['transactions'] })
+  queryClient.invalidateQueries({ queryKey: ['insight_transactions'] })
+  queryClient.invalidateQueries({ queryKey: ['monthly_trend'] })
+  queryClient.invalidateQueries({ queryKey: ['budgets'] })
+  queryClient.invalidateQueries({ queryKey: ['dashboard_month_transactions'] })
+}
+
 export function useTransactions(filters: TransactionFilters = {}) {
   return useQuery({
     queryKey: ['transactions', filters],
@@ -38,6 +46,7 @@ export function useTransactions(filters: TransactionFilters = {}) {
       if (error) throw error
       return (data ?? []) as unknown as Transaction[]
     },
+    staleTime: 30 * 1000,
   })
 }
 
@@ -66,7 +75,7 @@ export function useCreateTransaction() {
       return data
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transactions'] })
+      invalidateFinanceQueries(queryClient)
       toast.success('Transaction added')
     },
     onError: (err: Error) => toast.error(err.message),
@@ -88,7 +97,7 @@ export function useUpdateTransaction() {
       return data
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transactions'] })
+      invalidateFinanceQueries(queryClient)
       toast.success('Transaction updated')
     },
     onError: (err: Error) => toast.error(err.message),
@@ -104,7 +113,7 @@ export function useDeleteTransaction() {
       if (error) throw error
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transactions'] })
+      invalidateFinanceQueries(queryClient)
       toast.success('Transaction deleted')
     },
     onError: (err: Error) => toast.error(err.message),

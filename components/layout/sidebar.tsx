@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -27,6 +28,11 @@ export function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
 
+  useEffect(() => {
+    navItems.forEach(({ href }) => router.prefetch(href))
+    router.prefetch('/dashboard/settings')
+  }, [router])
+
   async function handleSignOut() {
     const supabase = createClient()
     await supabase.auth.signOut()
@@ -53,6 +59,7 @@ export function Sidebar() {
             <Link
               key={href}
               href={href}
+              prefetch
               className={cn(
                 'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                 active
@@ -71,6 +78,7 @@ export function Sidebar() {
       <div className="space-y-0.5 pt-4 border-t border-border/60">
         <Link
           href="/dashboard/settings"
+          prefetch
           className={cn(
             'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
             pathname.startsWith('/dashboard/settings')

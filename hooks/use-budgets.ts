@@ -23,6 +23,7 @@ export function useBudgets() {
       if (error) throw error
       return (data ?? []) as unknown as BudgetProgress[]
     },
+    staleTime: 30 * 1000,
   })
 }
 

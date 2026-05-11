@@ -23,6 +23,7 @@ export function useWorkspaces() {
       if (error) throw error
       return (data ?? []).map((m) => m.workspace) as Workspace[]
     },
+    staleTime: 60 * 1000,
   })
 }
 
@@ -42,6 +43,7 @@ export function useWorkspaceMembers(workspaceId: string | null) {
       if (error) throw error
       return (data ?? []) as (WorkspaceMember & { profile: { id: string; full_name: string; email: string; avatar_url: string | null } })[]
     },
+    staleTime: 60 * 1000,
   })
 }
 
@@ -62,6 +64,7 @@ export function useWorkspaceInvitations(workspaceId: string | null) {
       if (error) throw error
       return (data ?? []) as WorkspaceInvitation[]
     },
+    staleTime: 60 * 1000,
   })
 }
 

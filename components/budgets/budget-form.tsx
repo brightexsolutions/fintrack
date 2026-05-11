@@ -20,6 +20,8 @@ import { useCreateBudget, useUpdateBudget } from '@/hooks/use-budgets'
 import { useCategories } from '@/hooks/use-transactions'
 import type { BudgetProgress } from '@/types/database'
 
+const EMPTY_CATEGORY_VALUE = '__all_categories__'
+
 interface BudgetFormProps {
   open: boolean
   onClose: () => void
@@ -46,17 +48,7 @@ export function BudgetForm({ open, onClose, editing }: BudgetFormProps) {
 
   const { register, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm<BudgetFormData>({
     resolver: zodResolver(budgetSchema) as Resolver<BudgetFormData>,
-    defaultValues: editing ? {
-      name: editing.name,
-      category_id: editing.category_id ?? '',
-      amount: editing.budget_amount,
-      period: editing.period,
-      start_date: editing.start_date,
-      end_date: editing.end_date,
-      alerts_enabled: editing.alerts_enabled,
-      alert_threshold: editing.alert_threshold,
-      description: '',
-    } : {
+    defaultValues: {
       name: '',
       category_id: '',
       amount: undefined,
@@ -70,6 +62,31 @@ export function BudgetForm({ open, onClose, editing }: BudgetFormProps) {
 
   const alertsEnabled = watch('alerts_enabled')
   const period = watch('period')
+  const categoryId = watch('category_id')
+
+  useEffect(() => {
+    reset(editing ? {
+      name: editing.name,
+      category_id: editing.category_id ?? '',
+      amount: Number(editing.budget_amount),
+      period: editing.period,
+      start_date: editing.start_date,
+      end_date: editing.end_date,
+      alerts_enabled: editing.alerts_enabled,
+      alert_threshold: Number(editing.alert_threshold),
+      description: '',
+    } : {
+      name: '',
+      category_id: '',
+      amount: undefined,
+      period: 'monthly',
+      start_date: dates.start,
+      end_date: dates.end,
+      alerts_enabled: true,
+      alert_threshold: 80,
+      description: '',
+    })
+  }, [dates.end, dates.start, editing, open, reset])
 
   useEffect(() => {
     if (isEditing) return
@@ -121,14 +138,14 @@ export function BudgetForm({ open, onClose, editing }: BudgetFormProps) {
             <div className="space-y-2">
               <Label>Category</Label>
               <Select
-                onValueChange={(v) => setValue('category_id', v ?? '')}
-                defaultValue={editing?.category_id ?? ''}
+                value={categoryId || EMPTY_CATEGORY_VALUE}
+                onValueChange={(v) => setValue('category_id', v === EMPTY_CATEGORY_VALUE ? '' : (v ?? ''))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Any category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Any category</SelectItem>
+                  <SelectItem value={EMPTY_CATEGORY_VALUE}>Any category</SelectItem>
                   {expenseCategories.map((c) => (
                     <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                   ))}
@@ -138,8 +155,8 @@ export function BudgetForm({ open, onClose, editing }: BudgetFormProps) {
             <div className="space-y-2">
               <Label>Period</Label>
               <Select
+                value={period}
                 onValueChange={(v) => v && setValue('period', v as BudgetFormData['period'])}
-                defaultValue={editing?.period ?? 'monthly'}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -155,7 +172,15 @@ export function BudgetForm({ open, onClose, editing }: BudgetFormProps) {
 
           <div className="space-y-2">
             <Label htmlFor="amount">Budget amount (KES)</Label>
-            <Input id="amount" type="number" step="0.01" placeholder="0.00" {...register('amount')} />
+            <Input
+              id="amount"
+              type="number"
+              step="0.01"
+              placeholder="0.00"
+              {...register('amount', {
+                setValueAs: (value) => value === '' ? undefined : Number(value),
+              })}
+            />
             {errors.amount && <p className="text-sm text-destructive">{errors.amount.message}</p>}
           </div>
 
@@ -192,7 +217,9 @@ export function BudgetForm({ open, onClose, editing }: BudgetFormProps) {
                 min="1"
                 max="100"
                 placeholder="80"
-                {...register('alert_threshold')}
+                {...register('alert_threshold', {
+                  setValueAs: (value) => value === '' ? undefined : Number(value),
+                })}
               />
               <p className="text-xs text-muted-foreground">Alert when {watch('alert_threshold') || 80}% of budget is used</p>
             </div>
