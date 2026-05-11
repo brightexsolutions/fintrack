@@ -7,13 +7,13 @@ import { formatKES } from '@/lib/utils'
 
 interface SummaryCardsProps {
   totalBalance: number
-  monthlyIncome: number
-  monthlyExpenses: number
+  totalIncome: number
+  totalExpenses: number
   loading?: boolean
 }
 
-export function SummaryCards({ totalBalance, monthlyIncome, monthlyExpenses, loading }: SummaryCardsProps) {
-  const savingsRate = monthlyIncome > 0 ? Math.max(0, ((monthlyIncome - monthlyExpenses) / monthlyIncome) * 100) : 0
+export function SummaryCards({ totalBalance, totalIncome, totalExpenses, loading }: SummaryCardsProps) {
+  const savingsRate = totalIncome > 0 ? Math.max(0, ((totalIncome - totalExpenses) / totalIncome) * 100) : 0
 
   const cards = [
     {
@@ -25,16 +25,16 @@ export function SummaryCards({ totalBalance, monthlyIncome, monthlyExpenses, loa
       valueColor: totalBalance >= 0 ? 'text-foreground' : 'text-destructive',
     },
     {
-      label: 'Monthly Income',
-      value: formatKES(monthlyIncome),
+      label: 'Total Income',
+      value: formatKES(totalIncome),
       icon: ArrowUpRight,
       iconBg: 'bg-blue-500/10',
       iconColor: 'text-blue-500',
       valueColor: 'text-foreground',
     },
     {
-      label: 'Monthly Expenses',
-      value: formatKES(monthlyExpenses),
+      label: 'Total Expenses',
+      value: formatKES(totalExpenses),
       icon: ArrowDownRight,
       iconBg: 'bg-red-500/10',
       iconColor: 'text-red-500',
