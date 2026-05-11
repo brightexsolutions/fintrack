@@ -1,19 +1,18 @@
 'use client'
 
 import { useState } from 'react'
-import { Loader2, Upload, AlertCircle, CheckCircle2, SkipForward } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Loader2, Upload, AlertCircle, CheckCircle2, SkipForward, LayoutDashboard } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select'
 import { useParseMpesaSms, useImportMpesaTransactions } from '@/hooks/use-mpesa'
 import { useCategories } from '@/hooks/use-transactions'
 import { formatKES, formatDate } from '@/lib/utils'
 import type { ParsedMpesaTransaction } from '@/lib/mpesa/parser'
 
 export default function MpesaPage() {
+  const router = useRouter()
   const [smsText, setSmsText] = useState('')
   const [parsed, setParsed] = useState<ParsedMpesaTransaction[] | null>(null)
   const [skipped, setSkipped] = useState<Array<{ line: string; reason: string }>>([])
@@ -74,9 +73,14 @@ export default function MpesaPage() {
               {imported.created} transaction{imported.created !== 1 ? 's' : ''} imported
               {imported.duplicates > 0 ? `, ${imported.duplicates} duplicate${imported.duplicates !== 1 ? 's' : ''} skipped` : ''}
             </p>
-            <Button variant="outline" size="sm" className="mt-3 h-7 text-xs" onClick={handleReset}>
-              Import more
-            </Button>
+            <div className="flex gap-2 mt-3">
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleReset}>
+                Import more
+              </Button>
+              <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 gap-1" onClick={() => router.push('/dashboard')}>
+                <LayoutDashboard className="h-3 w-3" /> View Dashboard
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -159,23 +163,21 @@ export default function MpesaPage() {
                           {formatKES(tx.amount)}
                         </td>
                         <td className="px-3 py-2 text-xs text-muted-foreground hidden sm:table-cell">
-                          {tx.timestamp ? formatDate(tx.timestamp.toISOString()) : '—'}
+                          {tx.timestamp ? formatDate(tx.timestamp) : '—'}
                         </td>
                         <td className="px-3 py-2">
-                          <Select
+                          <select
+                            className="h-7 w-36 rounded-lg border border-input bg-transparent px-2.5 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
                             value={categoryMap[i] ?? ''}
-                            onValueChange={(v) => setCategoryMap((prev) => ({ ...prev, [i]: v === 'none' ? '' : v } as Record<number, string>))}
+                            onChange={(e) => setCategoryMap((prev) => ({ ...prev, [i]: e.target.value }))}
                           >
-                            <SelectTrigger className="h-7 w-36 text-xs">
-                              <SelectValue placeholder="No category" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">No category</SelectItem>
-                              {txCategories.map((c) => (
-                                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            <option value="">No category</option>
+                            {txCategories.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.name}
+                              </option>
+                            ))}
+                          </select>
                         </td>
                       </tr>
                     )
