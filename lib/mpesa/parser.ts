@@ -5,7 +5,9 @@ export type MpesaTransactionType =
   | 'withdraw'
   | 'airtime'
   | 'paybill'
-  | 'fuliza'
+  | 'fuliza'           // Fuliza credit used — notification paired with actual transaction
+  | 'fuliza_repayment' // Automatic repayment deducted when money arrives
+  | 'mshwari'          // M-Shwari ↔ M-PESA transfer
   | 'unknown'
 
 export interface ParsedMpesaTransaction {
@@ -20,6 +22,9 @@ export interface ParsedMpesaTransaction {
   timestamp: Date | null
   description: string
   raw: string
+  // Fuliza-specific extras
+  fuliza_outstanding?: number | null
+  fuliza_due_date?: string | null
 }
 
 export interface ParseResult {
@@ -38,17 +43,20 @@ function parseRef(sms: string): string | null {
 }
 
 function parseBalance(sms: string): number | null {
-  const m = sms.match(/M-PESA balance is Ksh([\d,]+\.?\d*)/i)
+  // Standard: "M-PESA balance is Ksh1,234.56"
+  let m = sms.match(/M-PESA balance is Ksh([\d,]+\.?\d*)/i)
+  if (m) return parseAmount(m[1])
+  // Fuliza repayment: "Your M-PESA balance is 400.35"
+  m = sms.match(/Your M-PESA balance is ([\d,]+\.?\d*)/i)
   return m ? parseAmount(m[1]) : null
 }
 
 function parseFee(sms: string): number | null {
-  const m = sms.match(/Transaction cost,?\s*Ksh([\d,]+\.?\d*)/i)
+  const m = sms.match(/Transaction cost,?\s*Ksh\.?\s*([\d,]+\.?\d*)/i)
   return m ? parseAmount(m[1]) : null
 }
 
 function parseTimestamp(sms: string): Date | null {
-  // "17/9/24 at 3:16 PM" or "9/1/24 at 11:02 AM" (DD/M/YY DD/MM/YYYY formats)
   const m = sms.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})\s+at\s+(\d{1,2}):(\d{2})\s*([AP]M)/i)
   if (!m) return null
   try {
@@ -65,8 +73,8 @@ function parseTimestamp(sms: string): Date | null {
 }
 
 // ─── Pattern matchers (order matters — more specific first) ─
+
 function matchPaybill(sms: string): ParsedMpesaTransaction | null {
-  // "Ksh500.00 sent to KPLC PREPAID for account 12345"
   const m = sms.match(/Confirmed\.?\s+Ksh([\d,]+\.?\d*)\s+sent to\s+(.+?)\s+for account\s+(\S+)/i)
   if (!m) return null
   return {
@@ -85,7 +93,6 @@ function matchPaybill(sms: string): ParsedMpesaTransaction | null {
 }
 
 function matchSent(sms: string): ParsedMpesaTransaction | null {
-  // "Ksh2,100.00 sent to BRIAN MBUGUA 0723447655"
   const m = sms.match(/Confirmed\.?\s+Ksh([\d,]+\.?\d*)\s+sent to\s+(.+?)\s+(254\d{9}|\d{9,10})\s+on/i)
   if (!m) return null
   return {
@@ -104,7 +111,6 @@ function matchSent(sms: string): ParsedMpesaTransaction | null {
 }
 
 function matchReceived(sms: string): ParsedMpesaTransaction | null {
-  // "You have received Ksh500.00 from JOHN DOE 0700000000"
   const m = sms.match(/received Ksh([\d,]+\.?\d*)\s+from\s+(.+?)\s+(254\d{9}|\d{9,10})/i)
   if (!m) return null
   return {
@@ -123,7 +129,6 @@ function matchReceived(sms: string): ParsedMpesaTransaction | null {
 }
 
 function matchBuyGoods(sms: string): ParsedMpesaTransaction | null {
-  // "Ksh150.00 paid to JAVA HOUSE." (till — no phone number)
   const m = sms.match(/Confirmed\.?\s+Ksh([\d,]+\.?\d*)\s+paid to\s+(.+?)\.\s+on/i)
   if (!m) return null
   return {
@@ -142,7 +147,6 @@ function matchBuyGoods(sms: string): ParsedMpesaTransaction | null {
 }
 
 function matchWithdraw(sms: string): ParsedMpesaTransaction | null {
-  // "You have withdrawn Ksh1,000.00 from"
   const m = sms.match(/withdrawn Ksh([\d,]+\.?\d*)\s+from\s+(.+?)\s+New/i)
   if (!m) return null
   return {
@@ -161,7 +165,6 @@ function matchWithdraw(sms: string): ParsedMpesaTransaction | null {
 }
 
 function matchAirtime(sms: string): ParsedMpesaTransaction | null {
-  // "Ksh50.00 sent to your Safaricom airtime"
   const m = sms.match(/Ksh([\d,]+\.?\d*)\s+sent to your\s+(.+?)\s+airtime/i)
   if (!m) return null
   return {
@@ -179,25 +182,84 @@ function matchAirtime(sms: string): ParsedMpesaTransaction | null {
   }
 }
 
-function matchFuliza(sms: string): ParsedMpesaTransaction | null {
-  const m = sms.match(/Fuliza M-PESA.*?Ksh([\d,]+\.?\d*)/i)
+// Fuliza credit notification — "Fuliza M-PESA amount is Ksh X. Access Fee charged Ksh Y."
+// This arrives paired with the actual transaction SMS (same ref). It means the transaction
+// was funded partly/fully by the Fuliza overdraft credit line. Not a separate expense.
+function matchFulizaCredit(sms: string): ParsedMpesaTransaction | null {
+  const m = sms.match(
+    /Fuliza M-PESA amount is Ksh\s*([\d,]+\.?\d*)\.?\s+Access Fee charged Ksh\s*([\d,]+\.?\d*)\.\s+Total Fuliza M-PESA outstanding amount is Ksh([\d,]+\.?\d*)\s+due on (\d{2}\/\d{2}\/\d{2,4})/i
+  )
   if (!m) return null
   return {
     mpesa_ref: parseRef(sms),
     type: 'expense',
     mpesa_type: 'fuliza',
     amount: parseAmount(m[1]),
-    fee: parseFee(sms),
+    fee: parseAmount(m[2]), // access fee
+    balance_after: null,     // no balance in these notifications
+    counterparty: 'Safaricom Fuliza',
+    counterparty_number: null,
+    timestamp: null,
+    description: `Fuliza credit used: Ksh ${m[1]}`,
+    raw: sms,
+    fuliza_outstanding: parseAmount(m[3]),
+    fuliza_due_date: m[4],
+  }
+}
+
+// Fuliza automatic repayment — "Ksh X from your M-PESA has been used to pay your outstanding Fuliza"
+// This fires when money arrives and Safaricom auto-deducts Fuliza balance first.
+function matchFulizaRepayment(sms: string): ParsedMpesaTransaction | null {
+  const m = sms.match(
+    /Ksh\s*([\d,]+\.?\d*)\s+from your M-PESA has been used to .+?pay your outstanding Fuliza M-PESA/i
+  )
+  if (!m) return null
+  return {
+    mpesa_ref: parseRef(sms),
+    type: 'expense',
+    mpesa_type: 'fuliza_repayment',
+    amount: parseAmount(m[1]),
+    fee: null,
     balance_after: parseBalance(sms),
     counterparty: 'Safaricom Fuliza',
     counterparty_number: null,
     timestamp: parseTimestamp(sms),
-    description: 'Fuliza M-Pesa repayment',
+    description: `Fuliza repayment: Ksh ${m[1]}`,
     raw: sms,
   }
 }
 
-const matchers = [matchPaybill, matchSent, matchReceived, matchBuyGoods, matchWithdraw, matchAirtime, matchFuliza]
+// M-Shwari ↔ M-PESA transfer — income when money moves from savings to wallet
+function matchMShwari(sms: string): ParsedMpesaTransaction | null {
+  const m = sms.match(/Ksh([\d,]+\.?\d*)\s+transferred from M-Shwari account/i)
+  if (!m) return null
+  return {
+    mpesa_ref: parseRef(sms),
+    type: 'income',
+    mpesa_type: 'mshwari',
+    amount: parseAmount(m[1]),
+    fee: parseFee(sms),
+    balance_after: parseBalance(sms),
+    counterparty: 'M-Shwari',
+    counterparty_number: null,
+    timestamp: parseTimestamp(sms),
+    description: `M-Shwari transfer: Ksh ${m[1]}`,
+    raw: sms,
+  }
+}
+
+// Order matters — repayment must be checked before generic Fuliza credit
+const matchers = [
+  matchPaybill,
+  matchSent,
+  matchReceived,
+  matchBuyGoods,
+  matchWithdraw,
+  matchAirtime,
+  matchMShwari,
+  matchFulizaRepayment,
+  matchFulizaCredit,
+]
 
 export function parseMpesaSms(sms: string): ParsedMpesaTransaction | null {
   const cleaned = sms.replace(/\n/g, ' ').trim()
@@ -210,7 +272,6 @@ export function parseMpesaSms(sms: string): ParsedMpesaTransaction | null {
 }
 
 export function parseMpesaBatch(rawText: string): ParseResult {
-  // Split on blank lines or lines starting with a transaction ref
   const lines = rawText
     .split(/\n{2,}/)
     .map((l) => l.replace(/\n/g, ' ').trim())
@@ -228,5 +289,59 @@ export function parseMpesaBatch(rawText: string): ParseResult {
     }
   }
 
-  return { parsed, skipped }
+  // Deduplicate same-ref pairs: when a Fuliza credit notification and the actual
+  // transaction (paybill/sent/buy_goods) share a ref, keep the real transaction only.
+  // The Fuliza notification is redundant — the expense is already captured.
+  const byRef = new Map<string, ParsedMpesaTransaction[]>()
+  const noRef: ParsedMpesaTransaction[] = []
+
+  for (const tx of parsed) {
+    if (!tx.mpesa_ref) {
+      noRef.push(tx)
+    } else {
+      const group = byRef.get(tx.mpesa_ref) ?? []
+      group.push(tx)
+      byRef.set(tx.mpesa_ref, group)
+    }
+  }
+
+  const deduped: ParsedMpesaTransaction[] = [...noRef]
+
+  for (const group of Array.from(byRef.values())) {
+    if (group.length === 1) {
+      deduped.push(group[0])
+      continue
+    }
+
+    // If the group has a Fuliza credit AND a real transaction, drop the Fuliza credit
+    const fulizaIdx = group.findIndex((t: ParsedMpesaTransaction) => t.mpesa_type === 'fuliza')
+    const realIdx = group.findIndex((t: ParsedMpesaTransaction) => t.mpesa_type !== 'fuliza')
+
+    if (fulizaIdx !== -1 && realIdx !== -1) {
+      // Keep the real transaction, annotate it with Fuliza info
+      const real = { ...group[realIdx] }
+      const fuliza = group[fulizaIdx]
+      real.fuliza_outstanding = fuliza.fuliza_outstanding
+      real.fuliza_due_date = fuliza.fuliza_due_date
+      real.description = `${real.description} (via Fuliza)`
+      deduped.push(real)
+      // Other entries in the group (if any) get pushed as-is
+      group.forEach((t: ParsedMpesaTransaction, i: number) => {
+        if (i !== fulizaIdx && i !== realIdx) deduped.push(t)
+      })
+    } else {
+      // No Fuliza pairing — push all
+      group.forEach((t: ParsedMpesaTransaction) => deduped.push(t))
+    }
+  }
+
+  // Sort by timestamp ascending (preserves original order for null timestamps)
+  deduped.sort((a, b) => {
+    if (!a.timestamp && !b.timestamp) return 0
+    if (!a.timestamp) return 1
+    if (!b.timestamp) return -1
+    return a.timestamp.getTime() - b.timestamp.getTime()
+  })
+
+  return { parsed: deduped, skipped }
 }
