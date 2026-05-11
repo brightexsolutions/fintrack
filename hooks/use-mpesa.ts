@@ -5,6 +5,23 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { ParseResult, ParsedMpesaTransaction } from '@/lib/mpesa/parser'
 
+function normalizeTimestamp(timestamp: ParsedMpesaTransaction['timestamp'] | string | null | undefined): Date | null {
+  if (!timestamp) return null
+  if (timestamp instanceof Date) {
+    return isNaN(timestamp.getTime()) ? null : timestamp
+  }
+  const parsed = new Date(timestamp as string)
+  return isNaN(parsed.getTime()) ? null : parsed
+}
+
+function invalidateFinanceQueries(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: ['transactions'] })
+  queryClient.invalidateQueries({ queryKey: ['insight_transactions'] })
+  queryClient.invalidateQueries({ queryKey: ['monthly_trend'] })
+  queryClient.invalidateQueries({ queryKey: ['budgets'] })
+  queryClient.invalidateQueries({ queryKey: ['dashboard_month_transactions'] })
+}
+
 export function useParseMpesaSms() {
   return useMutation({
     mutationFn: async (smsText: string): Promise<ParseResult> => {
@@ -17,7 +34,14 @@ export function useParseMpesaSms() {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.error ?? 'Parse failed')
       }
-      return res.json()
+      const result = await res.json() as ParseResult
+      return {
+        ...result,
+        parsed: result.parsed.map((tx) => ({
+          ...tx,
+          timestamp: normalizeTimestamp(tx.timestamp),
+        })),
+      }
     },
   })
 }
@@ -66,13 +90,15 @@ export function useImportMpesaTransactions() {
         : { data: [] }
 
       const existingRefSet = new Set((existingRefs ?? []).map((r) => r.mpesa_ref))
+      const batchRefSet = new Set<string>()
       const duplicates: number[] = []
-      const toInsert = transactions.filter((t, i) => {
-        if (t.mpesa_ref && existingRefSet.has(t.mpesa_ref)) {
+      const toInsert = transactions.flatMap((t, i) => {
+        if (t.mpesa_ref && (existingRefSet.has(t.mpesa_ref) || batchRefSet.has(t.mpesa_ref))) {
           duplicates.push(i)
-          return false
+          return []
         }
-        return true
+        if (t.mpesa_ref) batchRefSet.add(t.mpesa_ref)
+        return [{ transaction: t, originalIndex: i }]
       })
 
       if (toInsert.length === 0) {
@@ -80,21 +106,25 @@ export function useImportMpesaTransactions() {
         return { created: 0, duplicates: duplicates.length }
       }
 
-      const rows = toInsert.map((t, i) => ({
+      const rows = toInsert.map(({ transaction, originalIndex }) => {
+        const timestamp = normalizeTimestamp(transaction.timestamp)
+
+        return {
         user_id: user.id,
-        type: t.type as 'income' | 'expense',
-        amount: t.amount,
+        type: transaction.type as 'income' | 'expense',
+        amount: transaction.amount,
         currency: 'KES',
-        description: t.description,
+        description: transaction.description,
         payment_method: 'M-Pesa',
         status: 'completed' as const,
-        transaction_date: t.timestamp ? t.timestamp.toISOString() : new Date().toISOString(),
-        mpesa_ref: t.mpesa_ref,
-        counterparty: t.counterparty,
-        balance_after: t.balance_after,
+        transaction_date: timestamp ? timestamp.toISOString() : new Date().toISOString(),
+        mpesa_ref: transaction.mpesa_ref,
+        counterparty: transaction.counterparty,
+        balance_after: transaction.balance_after,
         mpesa_import_id: importRecord.id,
-        category_id: categoryMap[i] || null,
-      }))
+        category_id: categoryMap[originalIndex] || null,
+      }
+      })
 
       const { error: insertErr } = await supabase.from('transactions').insert(rows)
       if (insertErr) {
@@ -110,7 +140,7 @@ export function useImportMpesaTransactions() {
       return { created: toInsert.length, duplicates: duplicates.length }
     },
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ['transactions'] })
+      invalidateFinanceQueries(queryClient)
       const msg = result.duplicates > 0
         ? `Imported ${result.created} transactions (${result.duplicates} duplicates skipped)`
         : `Imported ${result.created} transactions`

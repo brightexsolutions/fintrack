@@ -1,15 +1,15 @@
 import { z } from 'zod'
 
 export const savingsGoalSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(100),
-  description: z.string().max(200).optional().or(z.literal('')),
-  target_amount: z.coerce.number().positive('Target must be greater than 0'),
-  target_date: z.string().optional().or(z.literal('')),
+  name: z.string().min(1, { error: 'Name is required' }).max(100),
+  description: z.string().max(200).optional(),
+  target_amount: z.coerce.number().positive({ error: 'Target must be greater than 0' }),
+  target_date: z.string().optional(),
 })
 
 export const contributionSchema = z.object({
-  amount: z.coerce.number().positive('Amount must be greater than 0'),
-  note: z.string().max(200).optional().or(z.literal('')),
+  amount: z.coerce.number().positive({ error: 'Amount must be greater than 0' }),
+  note: z.string().max(200).optional(),
 })
 
 export type SavingsGoalFormData = z.infer<typeof savingsGoalSchema>

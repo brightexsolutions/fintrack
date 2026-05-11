@@ -1,14 +1,14 @@
 import { z } from 'zod'
 
 export const workspaceSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(100),
-  description: z.string().max(200).optional().or(z.literal('')),
-  currency: z.string().default('KES'),
+  name: z.string().min(1, { error: 'Name is required' }).max(100),
+  description: z.string().max(200).optional(),
+  currency: z.string(),
 })
 
 export const inviteSchema = z.object({
-  invitee_email: z.string().email('Valid email is required'),
-  role: z.enum(['admin', 'editor', 'viewer']).default('editor'),
+  invitee_email: z.string().email({ error: 'Valid email is required' }),
+  role: z.enum(['admin', 'editor', 'viewer']),
 })
 
 export type WorkspaceFormData = z.infer<typeof workspaceSchema>
