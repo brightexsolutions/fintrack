@@ -25,6 +25,8 @@ import { formatDate } from '@/lib/utils'
 import { useCurrency } from '@/hooks/use-currency'
 import { parseISO, differenceInDays } from 'date-fns'
 import type { Subscription } from '@/types/database'
+import { useFinanceScope } from '@/hooks/use-finance-scope'
+import { PersonalOnlyNotice } from '@/components/workspace/personal-only-notice'
 
 const EMPTY_CATEGORY_VALUE = '__no_category__'
 
@@ -119,6 +121,7 @@ function SubCard({
 
 export default function SubscriptionsPage() {
   const { format } = useCurrency()
+  const { isWorkspaceMode } = useFinanceScope()
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Subscription | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Subscription | null>(null)
@@ -206,6 +209,15 @@ export default function SubscriptionsPage() {
 
   const yearlyTotal = monthlyTotal * 12
   const dueSoonCount = active.filter((s) => isDueSoon(s.next_billing_date, s.reminder_days)).length
+
+  if (isWorkspaceMode) {
+    return (
+      <PersonalOnlyNotice
+        title="Subscriptions stay personal for now"
+        description="Shared workspace collaboration is still in preview, so recurring bill tracking is available only in personal mode in this release."
+      />
+    )
+  }
 
   return (
     <div className="space-y-6 max-w-3xl">

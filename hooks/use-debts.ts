@@ -6,19 +6,26 @@ import { toast } from 'sonner'
 import type { Debt } from '@/types/database'
 import type { DebtFormData, DebtPaymentFormData } from '@/lib/validations/debt'
 
-export function useDebts() {
+export function useDebts(workspaceId?: string | null) {
   return useQuery({
-    queryKey: ['debts'],
+    queryKey: ['debts', workspaceId ?? 'personal'],
     queryFn: async () => {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return []
 
-      const { data, error } = await supabase
+      let query = supabase
         .from('debts')
         .select('*')
-        .eq('user_id', user.id)
         .order('due_date', { ascending: true, nullsFirst: false })
+
+      if (workspaceId) {
+        query = query.eq('workspace_id', workspaceId)
+      } else {
+        query = query.eq('user_id', user.id).is('workspace_id', null)
+      }
+
+      const { data, error } = await query
 
       if (error) throw error
       return (data ?? []) as Debt[]
@@ -30,13 +37,14 @@ export function useDebts() {
 export function useCreateDebt() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (values: DebtFormData) => {
+    mutationFn: async (values: DebtFormData & { workspace_id?: string | null }) => {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
       const { data, error } = await supabase.from('debts').insert({
         user_id: user.id,
+        workspace_id: values.workspace_id ?? null,
         type: values.type,
         contact_name: values.contact_name,
         contact_email: values.contact_email || null,

@@ -120,27 +120,26 @@ export function useInviteMember() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ workspaceId, values }: { workspaceId: string; values: InviteFormData }) => {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
+      const res = await fetch(`/api/workspace/${workspaceId}/invite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(values),
+      })
 
-      const { data, error } = await supabase
-        .from('workspace_invitations')
-        .insert({
-          workspace_id: workspaceId,
-          inviter_id: user.id,
-          invitee_email: values.invitee_email,
-          role: values.role,
-        })
-        .select()
-        .single()
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data.error ?? 'Failed to invite member')
+      }
 
-      if (error) throw error
-      return data as WorkspaceInvitation
+      return data as {
+        invitation: WorkspaceInvitation
+        email_sent: boolean
+        invite_url: string
+      }
     },
-    onSuccess: (_data, vars) => {
+    onSuccess: (data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['workspace_invitations', vars.workspaceId] })
-      toast.success('Invitation sent')
+      toast.success(data.email_sent ? 'Invitation sent by email' : 'Invitation created — copy the invite link to share it')
     },
     onError: (err: Error) => toast.error(err.message),
   })

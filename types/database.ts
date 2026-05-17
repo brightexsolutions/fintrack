@@ -92,6 +92,7 @@ export interface Category {
   is_default: boolean
   sort_order: number
   created_at: string
+  deleted_at: string | null
 }
 
 export interface Transaction {
@@ -112,6 +113,9 @@ export interface Transaction {
   counterparty: string | null
   balance_after: number | null
   mpesa_import_id: string | null
+  mpesa_type: string | null
+  fuliza_outstanding: number | null
+  is_transfer: boolean
   created_at: string
   updated_at: string
   // joined
@@ -173,6 +177,7 @@ export interface Debt {
   due_date: string | null
   status: DebtStatus
   notes: string | null
+  source_tag: string | null
   created_at: string
   updated_at: string
 }
@@ -216,13 +221,17 @@ export interface SavingsContribution {
 export interface MpesaImport {
   id: string
   user_id: string
+  workspace_id: string | null
   raw_sms_batch: string
   total_sms_count: number
   parsed_count: number
   failed_count: number
+  skipped_count: number
+  duplicate_count: number
   status: 'pending' | 'processing' | 'completed' | 'failed'
-  parse_errors: Array<{ line: number; error: string }>
+  parse_errors: Array<{ line: string; reason: string }>
   transactions_created: number
+  import_summary: Json | null
   created_at: string
 }
 
@@ -267,10 +276,10 @@ export interface Database {
       workspaces: { Row: Workspace; Insert: Omit<Workspace, 'id' | 'created_at' | 'updated_at'>; Update: Partial<Workspace>; Relationships: [] }
       workspace_members: { Row: WorkspaceMember; Insert: Omit<WorkspaceMember, 'id' | 'joined_at'>; Update: Partial<WorkspaceMember>; Relationships: [] }
       workspace_invitations: { Row: WorkspaceInvitation; Insert: Omit<WorkspaceInvitation, 'id' | 'token' | 'created_at' | 'updated_at'>; Update: Partial<WorkspaceInvitation>; Relationships: [] }
-      categories: { Row: Category; Insert: Omit<Category, 'id' | 'created_at'>; Update: Partial<Category>; Relationships: [] }
-      transactions: { Row: Transaction; Insert: Omit<Transaction, 'id' | 'created_at' | 'updated_at' | 'category'>; Update: Partial<Omit<Transaction, 'id' | 'created_at' | 'updated_at' | 'category'>>; Relationships: [] }
+      categories: { Row: Category; Insert: Omit<Category, 'id' | 'created_at' | 'deleted_at'>; Update: Partial<Category>; Relationships: [] }
+      transactions: { Row: Transaction; Insert: Omit<Transaction, 'id' | 'created_at' | 'updated_at' | 'category' | 'is_transfer'> & { is_transfer?: boolean }; Update: Partial<Omit<Transaction, 'id' | 'created_at' | 'updated_at' | 'category'>>; Relationships: [] }
       budgets: { Row: Budget; Insert: Omit<Budget, 'id' | 'created_at' | 'updated_at' | 'category'>; Update: Partial<Omit<Budget, 'id' | 'created_at' | 'updated_at' | 'category'>>; Relationships: [] }
-      debts: { Row: Debt; Insert: Omit<Debt, 'id' | 'amount_paid' | 'created_at' | 'updated_at'>; Update: Partial<Debt>; Relationships: [] }
+      debts: { Row: Debt; Insert: Omit<Debt, 'id' | 'amount_paid' | 'created_at' | 'updated_at' | 'source_tag'> & { source_tag?: string | null }; Update: Partial<Debt>; Relationships: [] }
       debt_payments: { Row: DebtPayment; Insert: Omit<DebtPayment, 'id' | 'created_at'>; Update: Partial<DebtPayment>; Relationships: [] }
       savings_goals: { Row: SavingsGoal; Insert: Omit<SavingsGoal, 'id' | 'current_amount' | 'created_at' | 'updated_at'>; Update: Partial<SavingsGoal>; Relationships: [] }
       savings_contributions: { Row: SavingsContribution; Insert: Omit<SavingsContribution, 'id' | 'created_at'>; Update: Partial<SavingsContribution>; Relationships: [] }

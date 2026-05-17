@@ -16,15 +16,16 @@ type NavItem = {
   label: string
   icon: React.ElementType
   moduleKey?: keyof typeof DEFAULT_VISIBLE_MODULES
+  personalOnly?: boolean
 }
 
 const navItems: NavItem[] = [
   { href: '/dashboard',              label: 'Dashboard',    icon: LayoutDashboard },
   { href: '/dashboard/transactions', label: 'Transactions', icon: ArrowLeftRight,  moduleKey: 'transactions' },
-  { href: '/dashboard/budgets',      label: 'Budgets',      icon: PiggyBank,        moduleKey: 'budgets' },
-  { href: '/dashboard/debts',        label: 'Debts',        icon: CreditCard,       moduleKey: 'debts' },
-  { href: '/dashboard/savings',      label: 'Savings',      icon: Target,           moduleKey: 'savings' },
-  { href: '/dashboard/subscriptions', label: 'Subscriptions',icon: RefreshCw },
+  { href: '/dashboard/budgets',      label: 'Budgets',      icon: PiggyBank,        moduleKey: 'budgets', personalOnly: true },
+  { href: '/dashboard/debts',        label: 'Debts',        icon: CreditCard,       moduleKey: 'debts', personalOnly: true },
+  { href: '/dashboard/savings',      label: 'Savings',      icon: Target,           moduleKey: 'savings', personalOnly: true },
+  { href: '/dashboard/subscriptions', label: 'Subscriptions',icon: RefreshCw,       personalOnly: true },
   { href: '/dashboard/insights',     label: 'Insights',     icon: BarChart3 },
   { href: '/dashboard/mpesa',        label: 'M-Pesa Import',icon: Smartphone },
   { href: '/dashboard/workspace',    label: 'Workspace',    icon: Users },
@@ -38,7 +39,8 @@ export function MobileNav() {
   const activeWorkspace = useActiveWorkspace()
   const visibleModules = activeWorkspace?.visible_modules ?? DEFAULT_VISIBLE_MODULES
 
-  const visibleNavItems = navItems.filter(({ moduleKey }) => {
+  const visibleNavItems = navItems.filter(({ moduleKey, personalOnly }) => {
+    if (activeWorkspace && personalOnly) return false
     if (!moduleKey || !activeWorkspace) return true
     return visibleModules[moduleKey] !== false
   })

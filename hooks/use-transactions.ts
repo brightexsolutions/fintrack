@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import type { Transaction, Category } from '@/types/database'
+import type { Transaction } from '@/types/database'
 import type { TransactionFormData } from '@/lib/validations/transaction'
 
 export interface TransactionFilters {
@@ -40,7 +40,7 @@ export function useTransactions(filters: TransactionFilters = {}) {
       if (filters.workspace_id) {
         query = query.eq('workspace_id', filters.workspace_id)
       } else {
-        query = query.eq('user_id', user.id)
+        query = query.eq('user_id', user.id).is('workspace_id', null)
       }
 
       if (filters.type && filters.type !== 'all') query = query.eq('type', filters.type)
@@ -130,21 +130,4 @@ export function useDeleteTransaction() {
   })
 }
 
-export function useCategories() {
-  return useQuery({
-    queryKey: ['categories'],
-    queryFn: async () => {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return []
-      const { data, error } = await supabase
-        .from('categories')
-        .select('*')
-        .or(`user_id.is.null,user_id.eq.${user.id}`)
-        .order('sort_order')
-      if (error) throw error
-      return (data ?? []) as Category[]
-    },
-    staleTime: 5 * 60 * 1000,
-  })
-}
+export { useCategories } from '@/hooks/use-categories'

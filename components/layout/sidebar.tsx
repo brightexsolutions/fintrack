@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, ArrowLeftRight, PiggyBank, CreditCard,
-  Target, BarChart3, Smartphone, Users, Settings, LogOut, RefreshCw,
+  Target, BarChart3, Smartphone, Users, Settings, LogOut, RefreshCw, Tag,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -19,17 +19,19 @@ type NavItem = {
   label: string
   icon: React.ElementType
   moduleKey?: keyof typeof DEFAULT_VISIBLE_MODULES
+  personalOnly?: boolean
 }
 
 const navItems: NavItem[] = [
   { href: '/dashboard',             label: 'Dashboard',    icon: LayoutDashboard },
   { href: '/dashboard/transactions',label: 'Transactions', icon: ArrowLeftRight, moduleKey: 'transactions' },
-  { href: '/dashboard/budgets',     label: 'Budgets',      icon: PiggyBank,       moduleKey: 'budgets' },
-  { href: '/dashboard/debts',       label: 'Debts',        icon: CreditCard,      moduleKey: 'debts' },
-  { href: '/dashboard/savings',     label: 'Savings',      icon: Target,          moduleKey: 'savings' },
-  { href: '/dashboard/subscriptions',label: 'Subscriptions',icon: RefreshCw },
+  { href: '/dashboard/budgets',     label: 'Budgets',      icon: PiggyBank,       moduleKey: 'budgets', personalOnly: true },
+  { href: '/dashboard/debts',       label: 'Debts',        icon: CreditCard,      moduleKey: 'debts', personalOnly: true },
+  { href: '/dashboard/savings',     label: 'Savings',      icon: Target,          moduleKey: 'savings', personalOnly: true },
+  { href: '/dashboard/subscriptions',label: 'Subscriptions',icon: RefreshCw,      personalOnly: true },
   { href: '/dashboard/insights',    label: 'Insights',     icon: BarChart3 },
   { href: '/dashboard/mpesa',       label: 'M-Pesa Import',icon: Smartphone },
+  { href: '/dashboard/categories',  label: 'Categories',   icon: Tag, personalOnly: true },
   { href: '/dashboard/workspace',   label: 'Workspace',    icon: Users },
 ]
 
@@ -39,7 +41,8 @@ export function Sidebar() {
   const activeWorkspace = useActiveWorkspace()
   const visibleModules = activeWorkspace?.visible_modules ?? DEFAULT_VISIBLE_MODULES
 
-  const visibleNavItems = navItems.filter(({ moduleKey }) => {
+  const visibleNavItems = navItems.filter(({ moduleKey, personalOnly }) => {
+    if (activeWorkspace && personalOnly) return false
     if (!moduleKey) return true
     // In personal mode (no active workspace) always show all; in workspace mode, respect visible_modules
     if (!activeWorkspace) return true
