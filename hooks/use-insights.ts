@@ -47,6 +47,7 @@ export function useInsightTransactions(filters: InsightFilters) {
         .from('transactions')
         .select('*, category:categories(id, name, color, icon)')
         .eq('status', 'completed')
+        .neq('is_transfer', true)
         .gte('transaction_date', startOfDay(parseISO(filters.dateFrom)).toISOString())
         .lte('transaction_date', endOfDay(parseISO(filters.dateTo)).toISOString())
         .order('transaction_date', { ascending: true })
@@ -85,6 +86,7 @@ export function useMonthlyTrend(workspaceId?: string | null) {
           .from('transactions')
           .select('type, amount')
           .eq('status', 'completed')
+          .neq('is_transfer', true)
           .gte('transaction_date', from)
           .lte('transaction_date', to)
 
