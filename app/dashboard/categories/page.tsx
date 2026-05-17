@@ -167,9 +167,9 @@ function CategoryBadge({ category }: { category: Category }) {
 }
 
 const MATCH_FIELD_LABELS: Record<MatchField, string> = {
-  counterparty: 'Counterparty name',
-  description: 'Description',
-  any: 'Counterparty or description',
+  counterparty: 'Sender / recipient name',
+  description: 'Transaction description',
+  any: 'Name or description (either)',
 }
 
 function RulesEditor({ categories }: { categories: Category[] }) {
@@ -215,26 +215,29 @@ function RulesEditor({ categories }: { categories: Category[] }) {
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Match in</Label>
-            <Select value={matchField} onValueChange={(v) => v && setMatchField(v as MatchField)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {(Object.entries(MATCH_FIELD_LABELS) as [MatchField, string][]).map(([v, l]) => (
-                  <SelectItem key={v} value={v}>{l}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label className="text-xs">Look inside</Label>
+            <select
+              className="h-9 w-full rounded-lg border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring dark:bg-input/30"
+              value={matchField}
+              onChange={(e) => setMatchField(e.target.value as MatchField)}
+            >
+              {(Object.entries(MATCH_FIELD_LABELS) as [MatchField, string][]).map(([v, l]) => (
+                <option key={v} value={v}>{l}</option>
+              ))}
+            </select>
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Assign category</Label>
-            <Select value={categoryId} onValueChange={(v) => v && setCategoryId(v)}>
-              <SelectTrigger><SelectValue placeholder="Pick category" /></SelectTrigger>
-              <SelectContent>
-                {categories.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <select
+              className="h-9 w-full rounded-lg border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring dark:bg-input/30"
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+            >
+              <option value="">Pick a category</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
           </div>
         </div>
         <Button
@@ -264,7 +267,7 @@ function RulesEditor({ categories }: { categories: Category[] }) {
                     {rule.keyword}
                   </span>
                   <span className="text-xs text-muted-foreground hidden sm:inline">
-                    in {MATCH_FIELD_LABELS[rule.match_field]}
+                    in <span className="lowercase">{MATCH_FIELD_LABELS[rule.match_field]}</span>
                   </span>
                   <span className="text-xs text-muted-foreground">→</span>
                   {cat ? (
