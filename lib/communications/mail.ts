@@ -129,6 +129,67 @@ export async function sendPaymentReminderEmail({
   await sendEmail({ to, subject, html, text })
 }
 
+export async function sendBudgetAlertEmail({
+  to,
+  fullName,
+  budgetName,
+  percentUsed,
+  spent,
+  budgetAmount,
+  remaining,
+  exceeded,
+  currency = 'Ksh',
+}: {
+  to: string
+  fullName: string
+  budgetName: string
+  percentUsed: number
+  spent: number
+  budgetAmount: number
+  remaining: number
+  exceeded: boolean
+  currency?: string
+}) {
+  const subject = exceeded
+    ? `Budget exceeded: ${budgetName} — FinTrack`
+    : `Budget warning: ${budgetName} at ${percentUsed.toFixed(0)}% — FinTrack`
+  const intro = fullName ? `Hi ${fullName},` : 'Hello,'
+  const statusLine = exceeded
+    ? `You have exceeded your <strong>${budgetName}</strong> budget.`
+    : `You are approaching your <strong>${budgetName}</strong> budget limit.`
+  const color = exceeded ? '#DC2626' : '#D97706'
+
+  const text = [
+    intro,
+    exceeded
+      ? `You have exceeded your ${budgetName} budget.`
+      : `You are at ${percentUsed.toFixed(0)}% of your ${budgetName} budget.`,
+    `Spent: ${currency} ${spent.toFixed(2)} of ${currency} ${budgetAmount.toFixed(2)}`,
+    `Remaining: ${currency} ${remaining.toFixed(2)}`,
+    `Review your budget: ${getAppUrl()}/dashboard/budgets`,
+  ].join('\n')
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
+      <p>${intro}</p>
+      <p>${statusLine}</p>
+      <table style="border-collapse: collapse; min-width: 300px;">
+        <tr><td style="padding: 6px 12px 6px 0; color: #6B7280;">Spent</td><td><strong style="color:${color}">${currency} ${spent.toFixed(2)}</strong></td></tr>
+        <tr><td style="padding: 6px 12px 6px 0; color: #6B7280;">Budget</td><td><strong>${currency} ${budgetAmount.toFixed(2)}</strong></td></tr>
+        <tr><td style="padding: 6px 12px 6px 0; color: #6B7280;">Remaining</td><td><strong>${currency} ${remaining.toFixed(2)}</strong></td></tr>
+        <tr><td style="padding: 6px 12px 6px 0; color: #6B7280;">Usage</td><td><strong>${percentUsed.toFixed(0)}%</strong></td></tr>
+      </table>
+      <p style="margin: 24px 0;">
+        <a href="${getAppUrl()}/dashboard/budgets" style="background:#059669;color:#ffffff;padding:12px 18px;border-radius:8px;text-decoration:none;display:inline-block;">
+          View budgets
+        </a>
+      </p>
+    </div>
+  `
+
+  await sendEmail({ to, subject, html, text })
+}
+
 export async function sendWeeklyDigestEmail({
   to,
   fullName,
