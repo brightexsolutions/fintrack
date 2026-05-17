@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Plus, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog'
@@ -13,6 +14,9 @@ import { PaymentForm } from '@/components/debts/payment-form'
 import { useDebts, useDeleteDebt } from '@/hooks/use-debts'
 import { useCurrency } from '@/hooks/use-currency'
 import { useProfile } from '@/hooks/use-profile'
+import { useQueryClient } from '@tanstack/react-query'
+import { createClient } from '@/lib/supabase/client'
+import { toast } from 'sonner'
 import type { Debt } from '@/types/database'
 import { useFinanceScope } from '@/hooks/use-finance-scope'
 import { PersonalOnlyNotice } from '@/components/workspace/personal-only-notice'
@@ -31,6 +35,9 @@ export default function DebtsPage() {
   const { data: debts = [], isLoading } = useDebts()
   const { data: profile } = useProfile()
   const deleteMutation = useDeleteDebt()
+  const queryClient = useQueryClient()
+  const [fulizaInput, setFulizaInput] = useState('')
+  const [savingFuliza, setSavingFuliza] = useState(false)
 
   const fulizaDebt = debts.find((d) => d.source_tag?.startsWith('fuliza'))
   const nonFulizaDebts = debts.filter((d) => !d.source_tag?.startsWith('fuliza'))
@@ -52,6 +59,46 @@ export default function DebtsPage() {
   function handleClose() {
     setFormOpen(false)
     setEditing(null)
+  }
+
+  async function saveFulizaBalance() {
+    const outstanding = parseFloat(fulizaInput)
+    if (isNaN(outstanding) || outstanding < 0) {
+      toast.error('Enter a valid amount')
+      return
+    }
+    setSavingFuliza(true)
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not authenticated')
+      const sourceTag = `fuliza:personal:${user.id}`
+      if (outstanding === 0) {
+        toast.success('No outstanding Fuliza balance recorded')
+        setFulizaInput('')
+        return
+      }
+      const { error } = await supabase.from('debts').insert({
+        user_id: user.id,
+        workspace_id: null,
+        type: 'i_owe',
+        contact_name: 'Safaricom Fuliza',
+        amount: outstanding,
+        amount_paid: 0,
+        currency: 'KES',
+        description: 'Fuliza M-PESA overdraft balance',
+        source_tag: sourceTag,
+        status: 'active',
+      })
+      if (error) throw error
+      queryClient.invalidateQueries({ queryKey: ['debts'] })
+      toast.success('Fuliza balance saved')
+      setFulizaInput('')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save')
+    } finally {
+      setSavingFuliza(false)
+    }
   }
 
   async function confirmDelete() {
@@ -153,6 +200,36 @@ export default function DebtsPage() {
                   {format(fulizaOutstanding)}
                 </p>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fuliza manual balance — shown when limit is set but no active debt is tracked */}
+      {!isLoading && fulizaLimit != null && (!fulizaDebt || fulizaDebt.status === 'paid') && tab === 'i_owe' && (
+        <div className="rounded-xl border border-orange-500/30 bg-orange-500/5 p-4 flex items-start gap-3">
+          <div className="mt-0.5 h-8 w-8 rounded-full flex items-center justify-center shrink-0 bg-orange-500/15">
+            <Zap className="h-4 w-4 text-orange-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-orange-700 dark:text-orange-300">Fuliza M-Pesa — balance not on record</p>
+            <p className="text-xs text-muted-foreground mt-0.5 mb-3">
+              Your Fuliza limit is {format(fulizaLimit)}. Enter your current outstanding amount to track it here.
+              {fulizaDebt?.status === 'paid' && ' (Previous balance was fully repaid.)'}
+            </p>
+            <div className="flex gap-2 items-center">
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="e.g. 653.53"
+                value={fulizaInput}
+                onChange={(e) => setFulizaInput(e.target.value)}
+                className="h-8 text-sm max-w-[160px]"
+              />
+              <Button size="sm" className="h-8 bg-orange-600 hover:bg-orange-700" onClick={saveFulizaBalance} disabled={savingFuliza || !fulizaInput}>
+                Save balance
+              </Button>
             </div>
           </div>
         </div>

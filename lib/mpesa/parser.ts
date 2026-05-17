@@ -61,7 +61,8 @@ function parseFee(sms: string): number | null {
 }
 
 function parseTimestamp(sms: string): Date | null {
-  const m = sms.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})\s+at\s+(\d{1,2}):(\d{2})\s*([AP]M)/i)
+  // "at" is optional — some Safaricom SMS omit it (e.g. M-Shwari loan approval)
+  const m = sms.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})\s+(?:at\s+)?(\d{1,2}):(\d{2})\s*([AP]M)/i)
   if (!m) return null
   try {
     const [, day, month, rawYear, hour, min, ampm] = m
@@ -501,6 +502,7 @@ function matchMShwariLoan(sms: string): ParsedMpesaTransaction | null {
       timestamp: parseTimestamp(sms),
       description: `M-Shwari loan: Ksh ${mReal[1]}`,
       raw: sms,
+      is_transfer: true,
     }
   }
   // Alternative format — amount before approval notice
@@ -518,6 +520,7 @@ function matchMShwariLoan(sms: string): ParsedMpesaTransaction | null {
     timestamp: parseTimestamp(sms),
     description: `M-Shwari loan: Ksh ${mAlt[1]}`,
     raw: sms,
+    is_transfer: true,
   }
 }
 
@@ -541,7 +544,9 @@ function matchKcbMpesaOut(sms: string): ParsedMpesaTransaction | null {
   }
 }
 
-// M-Shwari loan repayment — deducted from M-PESA or repaid from M-Shwari savings
+// M-Shwari loan repayment — money leaving M-PESA/M-Shwari to repay the loan (includes interest)
+// NOT marked is_transfer: loan disbursement is is_transfer (not real income), so
+// the repayment should be a real expense so the interest cost is captured in spending.
 function matchMShwariRepay(sms: string): ParsedMpesaTransaction | null {
   const m = sms.match(/Loan of Ksh\s*([\d,]+\.?\d*)\s+repaid from your M-(?:PESA|Shwari)/i)
   if (!m) return null
@@ -557,7 +562,6 @@ function matchMShwariRepay(sms: string): ParsedMpesaTransaction | null {
     timestamp: parseTimestamp(sms),
     description: `M-Shwari loan repayment: Ksh ${m[1]}`,
     raw: sms,
-    is_transfer: true,
   }
 }
 
@@ -584,6 +588,7 @@ function matchKcbMpesaIn(sms: string): ParsedMpesaTransaction | null {
 }
 
 // KCB M-Pesa loan approved → deposited to M-PESA
+// Marked is_transfer: loan money is not real income; repayment will be an expense
 function matchKcbLoan(sms: string): ParsedMpesaTransaction | null {
   const m = sms.match(/KCB M-PESA loan of Ksh\s*([\d,]+\.?\d*)\s+has been (?:approved|deposited)/i)
   if (!m) {
@@ -602,6 +607,7 @@ function matchKcbLoan(sms: string): ParsedMpesaTransaction | null {
       timestamp: parseTimestamp(sms),
       description: `KCB M-Pesa loan: Ksh ${m2[1]}`,
       raw: sms,
+      is_transfer: true,
     }
   }
   return {
@@ -616,6 +622,7 @@ function matchKcbLoan(sms: string): ParsedMpesaTransaction | null {
     timestamp: parseTimestamp(sms),
     description: `KCB M-Pesa loan: Ksh ${m[1]}`,
     raw: sms,
+    is_transfer: true,
   }
 }
 
@@ -680,12 +687,14 @@ function matchFulizaCredit(sms: string): ParsedMpesaTransaction | null {
   }
 }
 
-// Fuliza automatic repayment
+// Fuliza automatic repayment — "fully pay" clears outstanding (fuliza_outstanding = 0)
+// so syncFulizaDebt can auto-settle the debt record when full repayment is imported.
 function matchFulizaRepayment(sms: string): ParsedMpesaTransaction | null {
   const m = sms.match(
-    /Ksh\s*([\d,]+\.?\d*)\s+from your M-PESA has been used to .+?pay your outstanding Fuliza M-PESA/i
+    /Ksh\s*([\d,]+\.?\d*)\s+from your M-PESA has been used to (fully|partially) pay your outstanding Fuliza M-PESA/i
   )
   if (!m) return null
+  const isFullyPaid = /fully/i.test(m[2])
   return {
     mpesa_ref: parseRef(sms),
     type: 'expense',
@@ -698,6 +707,7 @@ function matchFulizaRepayment(sms: string): ParsedMpesaTransaction | null {
     timestamp: parseTimestamp(sms),
     description: `Fuliza repayment: Ksh ${m[1]}`,
     raw: sms,
+    fuliza_outstanding: isFullyPaid ? 0 : null,
   }
 }
 

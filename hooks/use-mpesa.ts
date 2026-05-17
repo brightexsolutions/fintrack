@@ -70,6 +70,8 @@ async function syncFulizaDebt(
     (t) => t.mpesa_type === 'fuliza' || (t.fuliza_outstanding != null && t.fuliza_outstanding > 0)
   )
   const fulizaRepayments = transactions.filter((t) => t.mpesa_type === 'fuliza_repayment')
+  // Full repayments set outstanding to 0 — used to auto-settle the debt record
+  const fulizaFullRepayments = fulizaRepayments.filter((t) => t.fuliza_outstanding === 0)
 
   if (fulizaCredits.length === 0 && fulizaRepayments.length === 0) return
 
@@ -136,9 +138,16 @@ async function syncFulizaDebt(
     }
   }
 
-  // When repayments arrive and there is an existing debt, check if a full-repayment
-  // message (fuliza_outstanding = 0) came in — handled above. Log payment rows for
-  // record-keeping only (the amount field is already the ground truth from SMS).
+  // If no credit messages came in but a full repayment did, settle the debt.
+  // This handles the case where Fuliza was fully repaid without a subsequent credit.
+  if (fulizaCredits.length === 0 && fulizaFullRepayments.length > 0 && existingDebt) {
+    await supabase
+      .from('debts')
+      .update({ amount: 0, amount_paid: existingDebt.amount, status: 'paid', updated_at: new Date().toISOString() })
+      .eq('id', existingDebt.id)
+  }
+
+  // Log payment rows for record-keeping (amount field is the ground truth from SMS).
   if (fulizaRepayments.length > 0 && existingDebt) {
     const paymentRows = fulizaRepayments.map((t) => ({
       debt_id: existingDebt.id,
