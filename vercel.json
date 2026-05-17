@@ -1,17 +1,16 @@
 {
-  "ignoreCommand": "exit 0",
   "crons": [
     {
       "path": "/api/cron/payment-reminders",
-      "schedule": "0 8 * * *"
+      "schedule": "0 5 * * *"
     },
     {
       "path": "/api/cron/weekly-digest",
-      "schedule": "0 8 * * 1"
+      "schedule": "0 5 * * 1"
     },
     {
       "path": "/api/health",
-      "schedule": "0 9 */3 * *"
+      "schedule": "0 6 */3 * *"
     }
   ]
 }
