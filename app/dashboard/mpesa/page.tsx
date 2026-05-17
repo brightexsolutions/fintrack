@@ -354,7 +354,7 @@ export default function MpesaPage() {
                           <div className="space-y-1">
                             <Label className="text-xs">Type</Label>
                             <select
-                              className="h-9 w-full rounded-lg border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring dark:bg-input/30"
+                              className="h-9 w-full rounded-lg border border-input bg-background text-foreground px-3 text-sm outline-none focus:border-ring dark:bg-zinc-900 dark:text-zinc-100 dark:border-zinc-700"
                               value={manualForm.type}
                               onChange={(e) => setManualForm((f) => ({ ...f, type: e.target.value as 'expense' | 'income' }))}
                             >
@@ -381,7 +381,7 @@ export default function MpesaPage() {
                           <div className="space-y-1">
                             <Label className="text-xs">Category (optional)</Label>
                             <select
-                              className="h-9 w-full rounded-lg border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring dark:bg-input/30"
+                              className="h-9 w-full rounded-lg border border-input bg-background text-foreground px-3 text-sm outline-none focus:border-ring dark:bg-zinc-900 dark:text-zinc-100 dark:border-zinc-700"
                               value={manualForm.category_id}
                               onChange={(e) => setManualForm((f) => ({ ...f, category_id: e.target.value }))}
                             >
@@ -476,7 +476,7 @@ export default function MpesaPage() {
                       <div className="space-y-1.5">
                         <Label>Category</Label>
                         <select
-                          className="h-9 w-full rounded-lg border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring dark:bg-input/30"
+                          className="h-9 w-full rounded-lg border border-input bg-background text-foreground px-3 text-sm outline-none focus:border-ring dark:bg-zinc-900 dark:text-zinc-100 dark:border-zinc-700"
                           value={draft.category_id ?? ''}
                           onChange={(event) => updateDraft(index, { category_id: event.target.value || null })}
                         >
