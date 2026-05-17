@@ -26,18 +26,25 @@ export function isDueSoon(dateStr: string, days: number): boolean {
   return due <= threshold
 }
 
-export function useSubscriptions() {
+export function useSubscriptions(workspaceId?: string | null) {
   return useQuery({
-    queryKey: ['subscriptions'],
+    queryKey: ['subscriptions', workspaceId ?? 'personal'],
     queryFn: async () => {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return []
-      const { data, error } = await supabase
+      let query = supabase
         .from('subscriptions')
         .select('*, category:categories(id, name, color, icon)')
-        .eq('user_id', user.id)
         .order('next_billing_date', { ascending: true })
+
+      if (workspaceId) {
+        query = query.eq('workspace_id', workspaceId)
+      } else {
+        query = query.eq('user_id', user.id).is('workspace_id', null)
+      }
+
+      const { data, error } = await query
       if (error) throw error
       return (data ?? []) as unknown as Subscription[]
     },
@@ -48,7 +55,7 @@ export function useSubscriptions() {
 export function useCreateSubscription() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (values: SubscriptionFormData) => {
+    mutationFn: async (values: SubscriptionFormData & { workspace_id?: string | null }) => {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
@@ -56,6 +63,7 @@ export function useCreateSubscription() {
         .from('subscriptions')
         .insert({
           user_id: user.id,
+          workspace_id: values.workspace_id ?? null,
           name: values.name,
           description: values.description || null,
           amount: values.amount,

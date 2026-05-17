@@ -6,19 +6,26 @@ import { toast } from 'sonner'
 import type { BudgetProgress } from '@/types/database'
 import type { BudgetFormData } from '@/lib/validations/budget'
 
-export function useBudgets() {
+export function useBudgets(workspaceId?: string | null) {
   return useQuery({
-    queryKey: ['budgets'],
+    queryKey: ['budgets', workspaceId ?? 'personal'],
     queryFn: async () => {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return []
 
-      const { data, error } = await supabase
+      let query = supabase
         .from('budget_progress')
         .select('*, category:categories(id, name, color, icon)')
-        .eq('user_id', user.id)
         .order('start_date', { ascending: false })
+
+      if (workspaceId) {
+        query = query.eq('workspace_id', workspaceId)
+      } else {
+        query = query.eq('user_id', user.id).is('workspace_id', null)
+      }
+
+      const { data, error } = await query
 
       if (error) throw error
       return (data ?? []) as unknown as BudgetProgress[]
@@ -30,13 +37,14 @@ export function useBudgets() {
 export function useCreateBudget() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (values: BudgetFormData) => {
+    mutationFn: async (values: BudgetFormData & { workspace_id?: string | null }) => {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
       const { data, error } = await supabase.from('budgets').insert({
         user_id: user.id,
+        workspace_id: values.workspace_id ?? null,
         name: values.name,
         category_id: values.category_id || null,
         amount: values.amount,

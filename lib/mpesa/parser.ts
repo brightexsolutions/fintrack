@@ -5,9 +5,14 @@ export type MpesaTransactionType =
   | 'withdraw'
   | 'airtime'
   | 'paybill'
-  | 'fuliza'           // Fuliza credit used — notification paired with actual transaction
-  | 'fuliza_repayment' // Automatic repayment deducted when money arrives
-  | 'mshwari'          // M-Shwari ↔ M-PESA transfer
+  | 'fuliza'            // Fuliza credit notification (paired with real tx)
+  | 'fuliza_repayment'  // Auto-repayment deducted when money arrives
+  | 'mshwari'          // M-Shwari → M-PESA (savings withdrawal)
+  | 'mshwari_out'      // M-PESA → M-Shwari (savings deposit) — is_transfer
+  | 'mshwari_loan'     // M-Shwari loan approved → M-PESA
+  | 'kcb_mpesa'        // KCB M-Pesa transfer or loan
+  | 'okoa_jahazi'      // Okoa Jahazi airtime advance
+  | 'charge'           // M-PESA service charge
   | 'unknown'
 
 export interface ParsedMpesaTransaction {
@@ -22,7 +27,7 @@ export interface ParsedMpesaTransaction {
   timestamp: Date | null
   description: string
   raw: string
-  // Fuliza-specific extras
+  is_transfer?: boolean       // true for internal pocket moves (M-Shwari/KCB savings)
   fuliza_outstanding?: number | null
   fuliza_due_date?: string | null
 }
@@ -30,6 +35,7 @@ export interface ParsedMpesaTransaction {
 export interface ParseResult {
   parsed: ParsedMpesaTransaction[]
   skipped: Array<{ line: string; reason: string }>
+  duplicate_refs?: string[]
 }
 
 // ─── Helpers ────────────────────────────────────────────────
@@ -43,10 +49,8 @@ function parseRef(sms: string): string | null {
 }
 
 function parseBalance(sms: string): number | null {
-  // Standard: "M-PESA balance is Ksh1,234.56"
   let m = sms.match(/M-PESA balance is Ksh([\d,]+\.?\d*)/i)
   if (m) return parseAmount(m[1])
-  // Fuliza repayment: "Your M-PESA balance is 400.35"
   m = sms.match(/Your M-PESA balance is ([\d,]+\.?\d*)/i)
   return m ? parseAmount(m[1]) : null
 }
@@ -72,10 +76,153 @@ function parseTimestamp(sms: string): Date | null {
   }
 }
 
+// ─── WhatsApp wrapper stripper ──────────────────────────────
+// Handles formats like:
+//   [00:45, 12/05/2026] Name: message...
+//   [12:30 PM, 5/12/2025] John Doe: message...
+//   12:45 - Name: message...
+const WHATSAPP_HEADER_RE = /^\[[\d:,\s\/APMapm]+\]\s+[^:]+:\s*/
+const WHATSAPP_DASH_RE = /^\d{1,2}:\d{2}(?:\s*[APM]{2})?\s+-\s+[^:]+:\s*/i
+
+function stripWhatsAppWrapper(text: string): string {
+  return text
+    .replace(WHATSAPP_HEADER_RE, '')
+    .replace(WHATSAPP_DASH_RE, '')
+    .trim()
+}
+
+// A bare ref code on its own line (e.g. "UEDO93OMC1") that Safaricom sometimes
+// puts on line 1 while "Confirmed." starts on line 2.
+const STANDALONE_REF_RE = /^([A-Z0-9]{8,12})\s*$/
+
+function isMessageStart(line: string): boolean {
+  const stripped = stripWhatsAppWrapper(line)
+  return [
+    /^[A-Z0-9]{8,12}\s+Confirmed/i,
+    /^Confirmed\.?/i,
+    /^Fuliza M-PESA amount is/i,
+    /^Ksh\s*[\d,]+\.?\d*\s+from your M-PESA has been used/i,
+    /^Ksh\s*[\d,]+\.?\d*\s+transferred from M-Shwari account/i,
+    /^Ksh\s*[\d,]+\.?\d*\s+transferred from KCB M-PESA/i,
+    /^You have sent Ksh/i,
+    /^You have received Ksh/i,
+    /^Your M-Shwari loan/i,
+    /^Dear Customer,\s*your M-Shwari loan/i,
+    /^Dear Customer,\s*your KCB M-PESA loan/i,
+    /^Okoa Jahazi of Ksh/i,
+    /^Your M-PESA account has been debited Ksh/i,
+  ].some((pattern) => pattern.test(stripped))
+}
+
+function splitMpesaMessages(rawText: string): string[] {
+  const normalized = rawText.replace(/\r/g, '').trim()
+  if (!normalized) return []
+
+  // First try blank-line splitting
+  const blocks = normalized
+    .split(/\n{2,}/)
+    .map((block) => block.replace(/\n/g, ' ').trim())
+    .filter(Boolean)
+
+  if (blocks.length > 1) return blocks.map(stripWhatsAppWrapper).filter(Boolean)
+
+  // Single block: split by detecting message starts, stripping WhatsApp wrappers per line
+  const lines = normalized
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  const messages: string[] = []
+  let buffer = ''
+  // When Safaricom puts the ref code on its own line, carry it forward so the
+  // next line ("Confirmed. ...") can be prefixed with it.
+  let pendingRef = ''
+
+  for (const line of lines) {
+    const clean = stripWhatsAppWrapper(line)
+    if (!clean) continue
+
+    // Bare ref code on its own line — hold it until the next line arrives
+    const refOnly = STANDALONE_REF_RE.exec(clean)
+    if (refOnly) {
+      if (buffer) {
+        messages.push(buffer.replace(/\s+/g, ' ').trim())
+        buffer = ''
+      }
+      pendingRef = refOnly[1]
+      continue
+    }
+
+    // If we have a pending ref, prepend it so the next line gets its ref back
+    const cleanWithRef = pendingRef ? `${pendingRef} ${clean}` : clean
+    pendingRef = ''
+
+    if (!buffer) {
+      buffer = cleanWithRef
+      continue
+    }
+
+    if (isMessageStart(line)) {
+      messages.push(buffer.replace(/\s+/g, ' ').trim())
+      buffer = cleanWithRef
+      continue
+    }
+
+    buffer = `${buffer} ${clean}`.trim()
+  }
+
+  if (buffer) messages.push(buffer.replace(/\s+/g, ' ').trim())
+
+  return messages.filter(Boolean)
+}
+
+function guessSkipReason(line: string): string {
+  // Not a financial message at all
+  if (!/ksh|m-pesa|fuliza|m-shwari|kcb|okoa|confirmed/i.test(line)) {
+    if (/amount you can transact|sign up for lipa|earn interest|save frequent|ziidi mmf|https?:\/\//i.test(line)) {
+      return 'Promotional or informational text — not a transaction'
+    }
+    return 'Not a recognised M-Pesa message'
+  }
+
+  // "Sent" message without phone number (saved contact)
+  const isSentMsg = /sent\s+Ksh[\d,]+/i.test(line) || /Ksh[\d,]+\.?\d*\s+sent\s+to/i.test(line)
+  if (isSentMsg && !/\d{9,12}\s+on/i.test(line) && !/for account/i.test(line)) {
+    return 'Send to saved contact — phone number missing from SMS; could not parse recipient'
+  }
+
+  // M-Shwari loan with unrecognised format
+  if (/m-shwari loan/i.test(line)) {
+    return 'M-Shwari loan message — format not recognised'
+  }
+
+  // Received without phone
+  if (/received\s+Ksh/i.test(line) && !/\d{9,12}/i.test(line)) {
+    return 'Received money — phone number missing from SMS; could not parse sender'
+  }
+
+  // Looks like a Fuliza message but regex didn't match
+  if (/fuliza/i.test(line)) {
+    return 'Fuliza message — format not fully recognised (may be missing outstanding amount or due date)'
+  }
+
+  // Withdrawal without clear agent/balance
+  if (/withdrawn|withdraw/i.test(line)) {
+    return 'Withdrawal message — format not recognised'
+  }
+
+  return 'Unsupported or incomplete M-Pesa format'
+}
+
 // ─── Pattern matchers (order matters — more specific first) ─
 
 function matchPaybill(sms: string): ParsedMpesaTransaction | null {
-  const m = sms.match(/Confirmed\.?\s+Ksh([\d,]+\.?\d*)\s+sent to\s+(.+?)\s+for account\s+(\S+)/i)
+  // Modern Safaricom: "Confirmed. Ksh50.00 sent to NAME for account ACC on DATE"
+  // Account field can be multi-word (e.g. "SAFARICOM DATA BUNDLES"), so use (.+?) anchored by \s+on\s+\d
+  const mNew = sms.match(/Ksh([\d,]+\.?\d*)\s+sent\s+to\s+(.+?)\s+for\s+account\s+(.+?)\s+on\s+\d/i)
+  // Legacy: "You have sent Ksh50.00 to NAME for account ACC on DATE"
+  const mOld = sms.match(/(?:You have\s+)?sent\s+Ksh([\d,]+\.?\d*)\s+to\s+(.+?)\s+for\s+account\s+(.+?)\s+on\s+\d/i)
+  const m = mNew ?? mOld
   if (!m) return null
   return {
     mpesa_ref: parseRef(sms),
@@ -93,25 +240,51 @@ function matchPaybill(sms: string): ParsedMpesaTransaction | null {
 }
 
 function matchSent(sms: string): ParsedMpesaTransaction | null {
-  const m = sms.match(/Confirmed\.?\s+Ksh([\d,]+\.?\d*)\s+sent to\s+(.+?)\s+(254\d{9}|\d{9,10})\s+on/i)
-  if (!m) return null
+  // With phone number — modern: "Ksh X sent to NAME 07XXXXXXXX on DATE"
+  const mPhoneNew = sms.match(/Ksh([\d,]+\.?\d*)\s+sent\s+to\s+(.+?)\s+(254\d{9}|\d{9,10})\s+on/i)
+  // With phone number — legacy: "sent Ksh X to NAME 07XXXXXXXX on DATE"
+  const mPhoneOld = sms.match(/(?:You have\s+)?sent\s+Ksh([\d,]+\.?\d*)\s+to\s+(.+?)\s+(254\d{9}|\d{9,10})\s+on/i)
+  const mPhone = mPhoneNew ?? mPhoneOld
+  if (mPhone) {
+    return {
+      mpesa_ref: parseRef(sms),
+      type: 'expense',
+      mpesa_type: 'sent',
+      amount: parseAmount(mPhone[1]),
+      fee: parseFee(sms),
+      balance_after: parseBalance(sms),
+      counterparty: mPhone[2].trim(),
+      counterparty_number: mPhone[3],
+      timestamp: parseTimestamp(sms),
+      description: `Sent to ${mPhone[2].trim()}`,
+      raw: sms,
+    }
+  }
+  // Saved contact — no phone. Exclude paybill ("for account") to avoid stealing from matchPaybill
+  if (/for account/i.test(sms)) return null
+  // Modern: "Ksh X sent to NAME on DATE"
+  const mSavedNew = sms.match(/Ksh([\d,]+\.?\d*)\s+sent\s+to\s+(.+?)\s+on\s+\d{1,2}\/\d{1,2}\/\d{2,4}/i)
+  // Legacy: "sent Ksh X to NAME on DATE"
+  const mSavedOld = sms.match(/(?:You have\s+)?sent\s+Ksh([\d,]+\.?\d*)\s+to\s+(.+?)\s+on\s+\d{1,2}\/\d{1,2}\/\d{2,4}/i)
+  const mSaved = mSavedNew ?? mSavedOld
+  if (!mSaved) return null
   return {
     mpesa_ref: parseRef(sms),
     type: 'expense',
     mpesa_type: 'sent',
-    amount: parseAmount(m[1]),
+    amount: parseAmount(mSaved[1]),
     fee: parseFee(sms),
     balance_after: parseBalance(sms),
-    counterparty: m[2].trim(),
-    counterparty_number: m[3],
+    counterparty: mSaved[2].trim(),
+    counterparty_number: null,
     timestamp: parseTimestamp(sms),
-    description: `Sent to ${m[2].trim()}`,
+    description: `Sent to ${mSaved[2].trim()}`,
     raw: sms,
   }
 }
 
 function matchReceived(sms: string): ParsedMpesaTransaction | null {
-  const m = sms.match(/received Ksh([\d,]+\.?\d*)\s+from\s+(.+?)\s+(254\d{9}|\d{9,10})/i)
+  const m = sms.match(/(?:You have\s+)?received\s+Ksh([\d,]+\.?\d*)\s+from\s+(.+?)\s+(254\d{9}|\d{9,10})/i)
   if (!m) return null
   return {
     mpesa_ref: parseRef(sms),
@@ -129,7 +302,7 @@ function matchReceived(sms: string): ParsedMpesaTransaction | null {
 }
 
 function matchBuyGoods(sms: string): ParsedMpesaTransaction | null {
-  const m = sms.match(/Confirmed\.?\s+Ksh([\d,]+\.?\d*)\s+paid to\s+(.+?)\.\s+on/i)
+  const m = sms.match(/(?:Confirmed\.?\s+)?Ksh([\d,]+\.?\d*)\s+paid to\s+(.+?)(?:\.\s+|\s+on)/i)
   if (!m) return null
   return {
     mpesa_ref: parseRef(sms),
@@ -165,7 +338,7 @@ function matchWithdraw(sms: string): ParsedMpesaTransaction | null {
 }
 
 function matchAirtime(sms: string): ParsedMpesaTransaction | null {
-  const m = sms.match(/Ksh([\d,]+\.?\d*)\s+sent to your\s+(.+?)\s+airtime/i)
+  const m = sms.match(/Ksh([\d,]+\.?\d*)\s+sent to your\s+(.+?)\s+airtime(?:\s+account)?/i)
   if (!m) return null
   return {
     mpesa_ref: parseRef(sms),
@@ -182,9 +355,180 @@ function matchAirtime(sms: string): ParsedMpesaTransaction | null {
   }
 }
 
+// Transfer TO M-Shwari savings — internal pocket move (not a real expense)
+function matchMShwariOut(sms: string): ParsedMpesaTransaction | null {
+  const m = sms.match(/Ksh([\d,]+\.?\d*)\s+transferred to M-Shwari account/i)
+  if (!m) return null
+  return {
+    mpesa_ref: parseRef(sms),
+    type: 'expense',
+    mpesa_type: 'mshwari_out',
+    amount: parseAmount(m[1]),
+    fee: parseFee(sms),
+    balance_after: parseBalance(sms),
+    counterparty: 'M-Shwari',
+    counterparty_number: null,
+    timestamp: parseTimestamp(sms),
+    description: `Transfer to M-Shwari: Ksh ${m[1]}`,
+    raw: sms,
+    is_transfer: true,
+  }
+}
+
+// Transfer FROM M-Shwari savings — internal pocket move (not a real income)
+function matchMShwari(sms: string): ParsedMpesaTransaction | null {
+  const m = sms.match(/Ksh([\d,]+\.?\d*)\s+transferred from M-Shwari account/i)
+  if (!m) return null
+  return {
+    mpesa_ref: parseRef(sms),
+    type: 'income',
+    mpesa_type: 'mshwari',
+    amount: parseAmount(m[1]),
+    fee: parseFee(sms),
+    balance_after: parseBalance(sms),
+    counterparty: 'M-Shwari',
+    counterparty_number: null,
+    timestamp: parseTimestamp(sms),
+    description: `Transfer from M-Shwari: Ksh ${m[1]}`,
+    raw: sms,
+    is_transfer: true,
+  }
+}
+
+// M-Shwari loan approved → deposited to M-PESA (income, not a transfer)
+// Real format: "Your M-Shwari loan has been approved on DATE and Ksh X less excise duty has been deposited to your M-PESA account"
+// Alt format:  "M-Shwari loan of Ksh X has been approved ... deposited to your M-PESA"
+function matchMShwariLoan(sms: string): ParsedMpesaTransaction | null {
+  // Real Safaricom format — amount appears AFTER approval notice
+  const mReal = sms.match(/Your M-Shwari loan has been approved.*?Ksh\s*([\d,]+\.?\d*)\s+less excise duty has been deposited to your M-PESA/i)
+  if (mReal) {
+    return {
+      mpesa_ref: parseRef(sms),
+      type: 'income',
+      mpesa_type: 'mshwari_loan',
+      amount: parseAmount(mReal[1]),
+      fee: null,
+      balance_after: parseBalance(sms),
+      counterparty: 'M-Shwari',
+      counterparty_number: null,
+      timestamp: parseTimestamp(sms),
+      description: `M-Shwari loan: Ksh ${mReal[1]}`,
+      raw: sms,
+    }
+  }
+  // Alternative format — amount before approval notice
+  const mAlt = sms.match(/M-Shwari loan of Ksh\s*([\d,]+\.?\d*)\s+has been approved.*deposited to your M-PESA/i)
+  if (!mAlt) return null
+  return {
+    mpesa_ref: parseRef(sms),
+    type: 'income',
+    mpesa_type: 'mshwari_loan',
+    amount: parseAmount(mAlt[1]),
+    fee: null,
+    balance_after: parseBalance(sms),
+    counterparty: 'M-Shwari',
+    counterparty_number: null,
+    timestamp: parseTimestamp(sms),
+    description: `M-Shwari loan: Ksh ${mAlt[1]}`,
+    raw: sms,
+  }
+}
+
+// KCB M-Pesa transfer from KCB to M-PESA (income, is_transfer)
+function matchKcbMpesaIn(sms: string): ParsedMpesaTransaction | null {
+  const m = sms.match(/Ksh\s*([\d,]+\.?\d*)\s+transferred from KCB M-PESA/i)
+  if (!m) return null
+  return {
+    mpesa_ref: parseRef(sms),
+    type: 'income',
+    mpesa_type: 'kcb_mpesa',
+    amount: parseAmount(m[1]),
+    fee: parseFee(sms),
+    balance_after: parseBalance(sms),
+    counterparty: 'KCB M-Pesa',
+    counterparty_number: null,
+    timestamp: parseTimestamp(sms),
+    description: `Transfer from KCB M-Pesa: Ksh ${m[1]}`,
+    raw: sms,
+    is_transfer: true,
+  }
+}
+
+// KCB M-Pesa loan approved → deposited to M-PESA
+function matchKcbLoan(sms: string): ParsedMpesaTransaction | null {
+  const m = sms.match(/KCB M-PESA loan of Ksh\s*([\d,]+\.?\d*)\s+has been (?:approved|deposited)/i)
+  if (!m) {
+    // Alternative format: "Your KCB M-PESA account has been credited with KSH X"
+    const m2 = sms.match(/KCB M-PESA account has been credited with (?:KSH|Ksh)\s*([\d,]+\.?\d*)/i)
+    if (!m2) return null
+    return {
+      mpesa_ref: parseRef(sms),
+      type: 'income',
+      mpesa_type: 'kcb_mpesa',
+      amount: parseAmount(m2[1]),
+      fee: null,
+      balance_after: parseBalance(sms),
+      counterparty: 'KCB M-Pesa',
+      counterparty_number: null,
+      timestamp: parseTimestamp(sms),
+      description: `KCB M-Pesa loan: Ksh ${m2[1]}`,
+      raw: sms,
+    }
+  }
+  return {
+    mpesa_ref: parseRef(sms),
+    type: 'income',
+    mpesa_type: 'kcb_mpesa',
+    amount: parseAmount(m[1]),
+    fee: null,
+    balance_after: parseBalance(sms),
+    counterparty: 'KCB M-Pesa',
+    counterparty_number: null,
+    timestamp: parseTimestamp(sms),
+    description: `KCB M-Pesa loan: Ksh ${m[1]}`,
+    raw: sms,
+  }
+}
+
+// Okoa Jahazi airtime advance
+function matchOkoaJahazi(sms: string): ParsedMpesaTransaction | null {
+  const m = sms.match(/Okoa Jahazi of Ksh\s*([\d,]+\.?\d*)\s+loaded/i)
+  if (!m) return null
+  return {
+    mpesa_ref: null,
+    type: 'expense',
+    mpesa_type: 'okoa_jahazi',
+    amount: parseAmount(m[1]),
+    fee: null,
+    balance_after: null,
+    counterparty: 'Safaricom',
+    counterparty_number: null,
+    timestamp: parseTimestamp(sms),
+    description: `Okoa Jahazi: Ksh ${m[1]}`,
+    raw: sms,
+  }
+}
+
+// M-PESA service charge deduction
+function matchCharge(sms: string): ParsedMpesaTransaction | null {
+  const m = sms.match(/M-PESA account has been debited Ksh\s*([\d,]+\.?\d*)\s+as (?:a\s+)?(?:M-PESA\s+)?charge/i)
+  if (!m) return null
+  return {
+    mpesa_ref: null,
+    type: 'expense',
+    mpesa_type: 'charge',
+    amount: parseAmount(m[1]),
+    fee: null,
+    balance_after: parseBalance(sms),
+    counterparty: 'Safaricom',
+    counterparty_number: null,
+    timestamp: parseTimestamp(sms),
+    description: `M-PESA charge: Ksh ${m[1]}`,
+    raw: sms,
+  }
+}
+
 // Fuliza credit notification — "Fuliza M-PESA amount is Ksh X. Access Fee charged Ksh Y."
-// This arrives paired with the actual transaction SMS (same ref). It means the transaction
-// was funded partly/fully by the Fuliza overdraft credit line. Not a separate expense.
 function matchFulizaCredit(sms: string): ParsedMpesaTransaction | null {
   const m = sms.match(
     /Fuliza M-PESA amount is Ksh\s*([\d,]+\.?\d*)\.?\s+Access Fee charged Ksh\s*([\d,]+\.?\d*)\.\s+Total Fuliza M-PESA outstanding amount is Ksh([\d,]+\.?\d*)\s+due on (\d{2}\/\d{2}\/\d{2,4})/i
@@ -195,8 +539,8 @@ function matchFulizaCredit(sms: string): ParsedMpesaTransaction | null {
     type: 'expense',
     mpesa_type: 'fuliza',
     amount: parseAmount(m[1]),
-    fee: parseAmount(m[2]), // access fee
-    balance_after: null,     // no balance in these notifications
+    fee: parseAmount(m[2]),
+    balance_after: null,
     counterparty: 'Safaricom Fuliza',
     counterparty_number: null,
     timestamp: null,
@@ -207,8 +551,7 @@ function matchFulizaCredit(sms: string): ParsedMpesaTransaction | null {
   }
 }
 
-// Fuliza automatic repayment — "Ksh X from your M-PESA has been used to pay your outstanding Fuliza"
-// This fires when money arrives and Safaricom auto-deducts Fuliza balance first.
+// Fuliza automatic repayment
 function matchFulizaRepayment(sms: string): ParsedMpesaTransaction | null {
   const m = sms.match(
     /Ksh\s*([\d,]+\.?\d*)\s+from your M-PESA has been used to .+?pay your outstanding Fuliza M-PESA/i
@@ -229,26 +572,7 @@ function matchFulizaRepayment(sms: string): ParsedMpesaTransaction | null {
   }
 }
 
-// M-Shwari ↔ M-PESA transfer — income when money moves from savings to wallet
-function matchMShwari(sms: string): ParsedMpesaTransaction | null {
-  const m = sms.match(/Ksh([\d,]+\.?\d*)\s+transferred from M-Shwari account/i)
-  if (!m) return null
-  return {
-    mpesa_ref: parseRef(sms),
-    type: 'income',
-    mpesa_type: 'mshwari',
-    amount: parseAmount(m[1]),
-    fee: parseFee(sms),
-    balance_after: parseBalance(sms),
-    counterparty: 'M-Shwari',
-    counterparty_number: null,
-    timestamp: parseTimestamp(sms),
-    description: `M-Shwari transfer: Ksh ${m[1]}`,
-    raw: sms,
-  }
-}
-
-// Order matters — repayment must be checked before generic Fuliza credit
+// Order matters — more specific matchers before generic ones
 const matchers = [
   matchPaybill,
   matchSent,
@@ -256,14 +580,19 @@ const matchers = [
   matchBuyGoods,
   matchWithdraw,
   matchAirtime,
+  matchMShwariOut,      // before matchMShwari (both match "M-Shwari")
   matchMShwari,
-  matchFulizaRepayment,
+  matchMShwariLoan,
+  matchKcbMpesaIn,
+  matchKcbLoan,
+  matchOkoaJahazi,
+  matchCharge,
+  matchFulizaRepayment, // before matchFulizaCredit
   matchFulizaCredit,
 ]
 
 export function parseMpesaSms(sms: string): ParsedMpesaTransaction | null {
-  const cleaned = sms.replace(/\n/g, ' ').trim()
-  if (!cleaned.toLowerCase().includes('confirmed')) return null
+  const cleaned = sms.replace(/\s+/g, ' ').trim()
   for (const matcher of matchers) {
     const result = matcher(cleaned)
     if (result) return result
@@ -272,10 +601,7 @@ export function parseMpesaSms(sms: string): ParsedMpesaTransaction | null {
 }
 
 export function parseMpesaBatch(rawText: string): ParseResult {
-  const lines = rawText
-    .split(/\n{2,}/)
-    .map((l) => l.replace(/\n/g, ' ').trim())
-    .filter(Boolean)
+  const lines = splitMpesaMessages(rawText)
 
   const parsed: ParsedMpesaTransaction[] = []
   const skipped: ParseResult['skipped'] = []
@@ -285,13 +611,12 @@ export function parseMpesaBatch(rawText: string): ParseResult {
     if (result) {
       parsed.push(result)
     } else {
-      skipped.push({ line, reason: 'Unrecognized M-Pesa format' })
+      skipped.push({ line, reason: guessSkipReason(line) })
     }
   }
 
   // Deduplicate same-ref pairs: when a Fuliza credit notification and the actual
-  // transaction (paybill/sent/buy_goods) share a ref, keep the real transaction only.
-  // The Fuliza notification is redundant — the expense is already captured.
+  // transaction share a ref, keep the real transaction, annotate it with Fuliza data.
   const byRef = new Map<string, ParsedMpesaTransaction[]>()
   const noRef: ParsedMpesaTransaction[] = []
 
@@ -313,29 +638,24 @@ export function parseMpesaBatch(rawText: string): ParseResult {
       continue
     }
 
-    // If the group has a Fuliza credit AND a real transaction, drop the Fuliza credit
     const fulizaIdx = group.findIndex((t: ParsedMpesaTransaction) => t.mpesa_type === 'fuliza')
     const realIdx = group.findIndex((t: ParsedMpesaTransaction) => t.mpesa_type !== 'fuliza')
 
     if (fulizaIdx !== -1 && realIdx !== -1) {
-      // Keep the real transaction, annotate it with Fuliza info
       const real = { ...group[realIdx] }
       const fuliza = group[fulizaIdx]
       real.fuliza_outstanding = fuliza.fuliza_outstanding
       real.fuliza_due_date = fuliza.fuliza_due_date
       real.description = `${real.description} (via Fuliza)`
       deduped.push(real)
-      // Other entries in the group (if any) get pushed as-is
       group.forEach((t: ParsedMpesaTransaction, i: number) => {
         if (i !== fulizaIdx && i !== realIdx) deduped.push(t)
       })
     } else {
-      // No Fuliza pairing — push all
       group.forEach((t: ParsedMpesaTransaction) => deduped.push(t))
     }
   }
 
-  // Sort by timestamp ascending (preserves original order for null timestamps)
   deduped.sort((a, b) => {
     if (!a.timestamp && !b.timestamp) return 0
     if (!a.timestamp) return 1

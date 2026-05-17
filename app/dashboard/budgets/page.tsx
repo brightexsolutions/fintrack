@@ -12,9 +12,12 @@ import { BudgetForm } from '@/components/budgets/budget-form'
 import { useBudgets, useDeleteBudget } from '@/hooks/use-budgets'
 import { useCurrency } from '@/hooks/use-currency'
 import type { BudgetProgress } from '@/types/database'
+import { useFinanceScope } from '@/hooks/use-finance-scope'
+import { PersonalOnlyNotice } from '@/components/workspace/personal-only-notice'
 
 export default function BudgetsPage() {
   const { format } = useCurrency()
+  const { isWorkspaceMode } = useFinanceScope()
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<BudgetProgress | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<BudgetProgress | null>(null)
@@ -43,6 +46,15 @@ export default function BudgetsPage() {
 
   const totalBudgeted = active.reduce((s, b) => s + Number(b.budget_amount), 0)
   const totalSpent = active.reduce((s, b) => s + Number(b.spent), 0)
+
+  if (isWorkspaceMode) {
+    return (
+      <PersonalOnlyNotice
+        title="Budgets stay personal for now"
+        description="Shared workspace collaboration is still in preview, so budgets are available only in personal mode in this release."
+      />
+    )
+  }
 
   return (
     <div className="space-y-6">

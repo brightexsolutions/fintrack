@@ -27,5 +27,32 @@ export async function POST(req: NextRequest) {
   }
 
   const result = parseMpesaBatch(body.sms_text)
-  return NextResponse.json(result)
+  const workspaceId = typeof body.workspace_id === 'string' && body.workspace_id.trim() ? body.workspace_id : null
+  const refs = result.parsed.map((transaction) => transaction.mpesa_ref).filter((ref): ref is string => Boolean(ref))
+
+  let duplicateRefs: string[] = []
+
+  if (refs.length > 0) {
+    let duplicateQuery = supabase.from('transactions').select('mpesa_ref').in('mpesa_ref', refs)
+
+    if (workspaceId) {
+      duplicateQuery = duplicateQuery.eq('workspace_id', workspaceId)
+    } else {
+      duplicateQuery = duplicateQuery.eq('user_id', user.id).is('workspace_id', null)
+    }
+
+    const { data: existingRefs } = await duplicateQuery
+    duplicateRefs = Array.from(
+      new Set(
+        (existingRefs ?? [])
+          .map((row) => row.mpesa_ref)
+          .filter((ref): ref is string => Boolean(ref))
+      )
+    )
+  }
+
+  return NextResponse.json({
+    ...result,
+    duplicate_refs: duplicateRefs,
+  })
 }

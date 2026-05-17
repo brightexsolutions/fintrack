@@ -13,6 +13,7 @@ import {
 import { useProfile, useUpdateProfile, SUPPORTED_CURRENCIES } from '@/hooks/use-profile'
 import { usePushNotifications } from '@/hooks/use-push-notifications'
 import { useTheme } from 'next-themes'
+import { useFinanceScope } from '@/hooks/use-finance-scope'
 
 const TIMEZONES = [
   'Africa/Nairobi',
@@ -44,6 +45,7 @@ export default function SettingsPage() {
   const updateProfile = useUpdateProfile()
   const { theme, setTheme } = useTheme()
   const { isSubscribed, isSupported, isConfigured, subscribe, unsubscribe, loading: pushLoading } = usePushNotifications()
+  const { activeWorkspaceId, isWorkspaceMode } = useFinanceScope()
 
   const [fullName, setFullName] = useState('')
   const [currency, setCurrency] = useState('KES')
@@ -197,7 +199,7 @@ export default function SettingsPage() {
           </div>
 
           {/* Web Push toggle */}
-          <div className="pt-2 border-t border-border/60">
+          <div className="pt-2 border-t border-border/60 space-y-2">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium">Push notifications</p>
@@ -219,6 +221,10 @@ export default function SettingsPage() {
                 />
               )}
             </div>
+            <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
+              On iPhone or iPad, push notifications only work when FinTrack is added to your Home Screen.
+              Open this page in Safari, tap Share, then &quot;Add to Home Screen&quot; — then enable the toggle above.
+            </p>
           </div>
         </div>
       </Section>
@@ -234,11 +240,19 @@ export default function SettingsPage() {
             variant="outline"
             size="sm"
             className="gap-1.5"
-            onClick={() => window.open('/api/export', '_blank')}
+            onClick={() => {
+              const url = activeWorkspaceId
+                ? `/api/export?scope=workspace&workspace_id=${encodeURIComponent(activeWorkspaceId)}`
+                : '/api/export?scope=personal'
+              window.open(url, '_blank')
+            }}
           >
             <Download className="h-3.5 w-3.5" /> Download CSV
           </Button>
         </div>
+        <p className="text-xs text-muted-foreground">
+          {isWorkspaceMode ? 'Exports the currently selected workspace transactions.' : 'Exports your personal transactions only.'}
+        </p>
       </Section>
 
       <div className="flex justify-end">

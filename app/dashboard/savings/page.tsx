@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, ArrowDownLeft, ArrowUpRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -11,18 +11,29 @@ import { GoalCard } from '@/components/savings/goal-card'
 import { GoalForm } from '@/components/savings/goal-form'
 import { ContributionForm } from '@/components/savings/contribution-form'
 import { useSavingsGoals, useDeleteSavingsGoal } from '@/hooks/use-savings'
+import { useTransactions } from '@/hooks/use-transactions'
 import { useCurrency } from '@/hooks/use-currency'
+import { formatDate } from '@/lib/utils'
 import type { SavingsGoal } from '@/types/database'
+import { useFinanceScope } from '@/hooks/use-finance-scope'
+import { PersonalOnlyNotice } from '@/components/workspace/personal-only-notice'
 
 export default function SavingsPage() {
   const { format } = useCurrency()
+  const { isWorkspaceMode } = useFinanceScope()
   const [formOpen, setFormOpen] = useState(false)
   const [contributeTarget, setContributeTarget] = useState<SavingsGoal | null>(null)
   const [editing, setEditing] = useState<SavingsGoal | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<SavingsGoal | null>(null)
+  const [showAllPockets, setShowAllPockets] = useState(false)
 
   const { data: goals = [], isLoading } = useSavingsGoals()
   const deleteMutation = useDeleteSavingsGoal()
+
+  // Pocket transfers: M-Shwari / KCB transactions with is_transfer flag
+  const { data: allTransactions = [] } = useTransactions()
+  const pocketTransfers = allTransactions.filter((t) => t.is_transfer)
+  const visiblePockets = showAllPockets ? pocketTransfers : pocketTransfers.slice(0, 5)
 
   const active = goals.filter((g) => g.status === 'active')
   const completed = goals.filter((g) => g.status === 'completed')
@@ -44,6 +55,15 @@ export default function SavingsPage() {
     if (!deleteTarget) return
     await deleteMutation.mutateAsync(deleteTarget.id)
     setDeleteTarget(null)
+  }
+
+  if (isWorkspaceMode) {
+    return (
+      <PersonalOnlyNotice
+        title="Savings goals stay personal for now"
+        description="Shared workspace collaboration is still in preview, so savings goals are available only in personal mode in this release."
+      />
+    )
   }
 
   return (
@@ -120,6 +140,50 @@ export default function SavingsPage() {
               <GoalCard key={g.id} goal={g} onEdit={handleEdit} onDelete={setDeleteTarget} onContribute={setContributeTarget} />
             ))}
           </div>
+        </div>
+      )}
+
+      {/* M-Shwari / KCB pocket transfers */}
+      {pocketTransfers.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold">M-Shwari & KCB Pocket Activity</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Internal pocket transfers — excluded from budget calculations
+              </p>
+            </div>
+          </div>
+          <div className="rounded-xl border border-border bg-card divide-y divide-border">
+            {visiblePockets.map((tx) => {
+              const isIn = tx.type === 'income'
+              return (
+                <div key={tx.id} className="flex items-center gap-3 px-4 py-3">
+                  <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${isIn ? 'bg-emerald-500/10' : 'bg-blue-500/10'}`}>
+                    {isIn
+                      ? <ArrowDownLeft className="h-3.5 w-3.5 text-emerald-600" />
+                      : <ArrowUpRight className="h-3.5 w-3.5 text-blue-600" />
+                    }
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{tx.description}</p>
+                    <p className="text-xs text-muted-foreground">{formatDate(tx.transaction_date)}</p>
+                  </div>
+                  <p className={`text-sm font-semibold tabular-nums shrink-0 ${isIn ? 'text-emerald-600' : 'text-blue-600'}`}>
+                    {isIn ? '+' : '−'}{format(tx.amount)}
+                  </p>
+                </div>
+              )
+            })}
+          </div>
+          {pocketTransfers.length > 5 && (
+            <button
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors w-full text-center py-1"
+              onClick={() => setShowAllPockets((v) => !v)}
+            >
+              {showAllPockets ? 'Show less' : `Show all ${pocketTransfers.length} transfers`}
+            </button>
+          )}
         </div>
       )}
 

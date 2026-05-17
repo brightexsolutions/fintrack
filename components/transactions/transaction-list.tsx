@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowUpRight, ArrowDownRight, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { ArrowUpRight, ArrowDownRight, ArrowLeftRight, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -70,11 +70,13 @@ export function TransactionList({ transactions, loading, onEdit, memberMap }: Tr
           >
             {/* Icon */}
             <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
-              tx.type === 'income' ? 'bg-emerald-500/10' : 'bg-red-500/10'
+              tx.is_transfer ? 'bg-blue-500/10' : tx.type === 'income' ? 'bg-emerald-500/10' : 'bg-red-500/10'
             }`}>
-              {tx.type === 'income'
-                ? <ArrowUpRight className="h-4 w-4 text-emerald-500" />
-                : <ArrowDownRight className="h-4 w-4 text-red-500" />
+              {tx.is_transfer
+                ? <ArrowLeftRight className="h-4 w-4 text-blue-500" />
+                : tx.type === 'income'
+                  ? <ArrowUpRight className="h-4 w-4 text-emerald-500" />
+                  : <ArrowDownRight className="h-4 w-4 text-red-500" />
               }
             </div>
 
@@ -83,6 +85,11 @@ export function TransactionList({ transactions, loading, onEdit, memberMap }: Tr
               <p className="text-sm font-medium truncate">{tx.description}</p>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs text-muted-foreground">{formatDate(tx.transaction_date)}</span>
+                {tx.is_transfer && (
+                  <Badge variant="secondary" className="text-xs px-1.5 py-0 h-4 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                    Transfer
+                  </Badge>
+                )}
                 {tx.category && (
                   <Badge
                     variant="secondary"

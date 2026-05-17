@@ -6,19 +6,26 @@ import { toast } from 'sonner'
 import type { SavingsGoal } from '@/types/database'
 import type { SavingsGoalFormData, ContributionFormData } from '@/lib/validations/savings'
 
-export function useSavingsGoals() {
+export function useSavingsGoals(workspaceId?: string | null) {
   return useQuery({
-    queryKey: ['savings_goals'],
+    queryKey: ['savings_goals', workspaceId ?? 'personal'],
     queryFn: async () => {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return []
 
-      const { data, error } = await supabase
+      let query = supabase
         .from('savings_goals')
         .select('*')
-        .eq('user_id', user.id)
         .order('created_at', { ascending: false })
+
+      if (workspaceId) {
+        query = query.eq('workspace_id', workspaceId)
+      } else {
+        query = query.eq('user_id', user.id).is('workspace_id', null)
+      }
+
+      const { data, error } = await query
 
       if (error) throw error
       return (data ?? []) as SavingsGoal[]
@@ -30,13 +37,14 @@ export function useSavingsGoals() {
 export function useCreateSavingsGoal() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (values: SavingsGoalFormData) => {
+    mutationFn: async (values: SavingsGoalFormData & { workspace_id?: string | null }) => {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
       const { data, error } = await supabase.from('savings_goals').insert({
         user_id: user.id,
+        workspace_id: values.workspace_id ?? null,
         name: values.name,
         description: values.description || null,
         target_amount: values.target_amount,

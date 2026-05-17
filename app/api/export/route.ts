@@ -32,12 +32,19 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const dateFrom = searchParams.get('from')
   const dateTo = searchParams.get('to')
+  const scope = searchParams.get('scope') === 'workspace' ? 'workspace' : 'personal'
+  const workspaceId = searchParams.get('workspace_id')
 
   let query = supabase
     .from('transactions')
     .select('*, category:categories(name)')
-    .eq('user_id', user.id)
     .order('transaction_date', { ascending: false })
+
+  if (scope === 'workspace' && workspaceId) {
+    query = query.eq('workspace_id', workspaceId)
+  } else {
+    query = query.eq('user_id', user.id).is('workspace_id', null)
+  }
 
   if (dateFrom) query = query.gte('transaction_date', dateFrom)
   if (dateTo) query = query.lte('transaction_date', dateTo)

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -13,11 +13,14 @@ import { PaymentForm } from '@/components/debts/payment-form'
 import { useDebts, useDeleteDebt } from '@/hooks/use-debts'
 import { useCurrency } from '@/hooks/use-currency'
 import type { Debt } from '@/types/database'
+import { useFinanceScope } from '@/hooks/use-finance-scope'
+import { PersonalOnlyNotice } from '@/components/workspace/personal-only-notice'
 
 type TabType = 'i_owe' | 'owed_to_me'
 
 export default function DebtsPage() {
   const { format } = useCurrency()
+  const { isWorkspaceMode } = useFinanceScope()
   const [tab, setTab] = useState<TabType>('i_owe')
   const [formOpen, setFormOpen] = useState(false)
   const [paymentTarget, setPaymentTarget] = useState<Debt | null>(null)
@@ -27,11 +30,14 @@ export default function DebtsPage() {
   const { data: debts = [], isLoading } = useDebts()
   const deleteMutation = useDeleteDebt()
 
-  const filtered = debts.filter((d) => d.type === tab)
+  const fulizaDebt = debts.find((d) => d.source_tag === 'fuliza')
+  const nonFulizaDebts = debts.filter((d) => d.source_tag !== 'fuliza')
+  const filtered = nonFulizaDebts.filter((d) => d.type === tab)
   const activeDebts = filtered.filter((d) => d.status !== 'paid' && d.status !== 'cancelled')
   const settledDebts = filtered.filter((d) => d.status === 'paid' || d.status === 'cancelled')
 
   const totalOwed = activeDebts.reduce((s, d) => s + (d.amount - d.amount_paid), 0)
+  const fulizaOutstanding = fulizaDebt ? fulizaDebt.amount - fulizaDebt.amount_paid : 0
 
   function handleEdit(d: Debt) {
     setEditing(d)
@@ -47,6 +53,15 @@ export default function DebtsPage() {
     if (!deleteTarget) return
     await deleteMutation.mutateAsync(deleteTarget.id)
     setDeleteTarget(null)
+  }
+
+  if (isWorkspaceMode) {
+    return (
+      <PersonalOnlyNotice
+        title="Debts stay personal for now"
+        description="Shared workspace collaboration is still in preview, so debt tracking is available only in personal mode in this release."
+      />
+    )
   }
 
   return (
@@ -89,6 +104,46 @@ export default function DebtsPage() {
           </button>
         ))}
       </div>
+
+      {/* Fuliza callout — shown only when Fuliza debt exists and we're on "I Owe" tab */}
+      {!isLoading && fulizaDebt && tab === 'i_owe' && (
+        <div className={`rounded-xl border p-4 flex items-start gap-3 ${
+          fulizaOutstanding > 0
+            ? 'border-orange-500/40 bg-orange-500/5'
+            : 'border-emerald-500/30 bg-emerald-500/5'
+        }`}>
+          <div className={`mt-0.5 h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${
+            fulizaOutstanding > 0 ? 'bg-orange-500/15' : 'bg-emerald-500/15'
+          }`}>
+            <Zap className={`h-4 w-4 ${fulizaOutstanding > 0 ? 'text-orange-600' : 'text-emerald-600'}`} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-2 flex-wrap">
+              <div>
+                <p className={`text-sm font-semibold ${fulizaOutstanding > 0 ? 'text-orange-700 dark:text-orange-300' : 'text-emerald-700 dark:text-emerald-300'}`}>
+                  Fuliza M-Pesa {fulizaOutstanding > 0 ? `— ${format(fulizaOutstanding)} outstanding` : '— all clear'}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {fulizaOutstanding > 0
+                    ? `You used Fuliza overdraft. Auto-repayment happens when money arrives in your M-Pesa. Total used: ${format(fulizaDebt.amount)}, repaid: ${format(fulizaDebt.amount_paid)}.`
+                    : `Fuliza balance fully repaid. Total cycled: ${format(fulizaDebt.amount)}.`
+                  }
+                  {fulizaDebt.due_date && fulizaOutstanding > 0 && (
+                    <span className="ml-1 font-medium text-orange-600 dark:text-orange-400">
+                      Due: {fulizaDebt.due_date}
+                    </span>
+                  )}
+                </p>
+              </div>
+              {fulizaOutstanding > 0 && (
+                <p className={`text-lg font-bold tabular-nums shrink-0 ${fulizaOutstanding > 0 ? 'text-orange-700 dark:text-orange-300' : 'text-emerald-600'}`}>
+                  {format(fulizaOutstanding)}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Loading */}
       {isLoading && (

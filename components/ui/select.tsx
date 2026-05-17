@@ -255,18 +255,19 @@ interface SelectItemProps extends React.HTMLAttributes<HTMLDivElement> {
 const SelectItem = React.forwardRef<HTMLDivElement, SelectItemProps>(
   function SelectItem({ className, children, value, disabled, ...props }, ref) {
     const ctx = useSelectCtx()
-    const selected = ctx.value === value
+    const { labels, notifyLabelChange, onChange, value: currentValue } = ctx
+    const selected = currentValue === value
 
     React.useEffect(() => {
       const text = extractText(children)
       if (text) {
-        ctx.labels.current.set(value, text)
+        labels.current.set(value, text)
         // Trigger SelectValue re-render so it can display the label after items mount.
-        ctx.notifyLabelChange()
+        notifyLabelChange()
       }
       // No cleanup — labels persist for the Select lifetime so SelectValue
       // can display the label even when SelectContent is unmounted (dropdown closed).
-    }, [value, children, ctx.labels, ctx.notifyLabelChange])
+    }, [value, children, labels, notifyLabelChange])
 
     return (
       <div
@@ -284,7 +285,7 @@ const SelectItem = React.forwardRef<HTMLDivElement, SelectItemProps>(
         )}
         onPointerDown={(e) => {
           e.preventDefault()
-          if (!disabled) ctx.onChange(value)
+          if (!disabled) onChange(value)
         }}
         {...props}
       >

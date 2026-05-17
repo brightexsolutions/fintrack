@@ -94,7 +94,7 @@ export default function WorkspacePage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold">Workspaces</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Share finances with family or partners</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Share transactions with family or partners. Workspace collaboration is currently in preview.</p>
         </div>
         <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4 mr-1.5" /> New workspace

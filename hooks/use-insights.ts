@@ -54,7 +54,7 @@ export function useInsightTransactions(filters: InsightFilters) {
       if (filters.workspace_id) {
         query = query.eq('workspace_id', filters.workspace_id)
       } else {
-        query = query.eq('user_id', user.id)
+        query = query.eq('user_id', user.id).is('workspace_id', null)
       }
 
       const { data, error } = await query
@@ -91,7 +91,7 @@ export function useMonthlyTrend(workspaceId?: string | null) {
         if (workspaceId) {
           q = q.eq('workspace_id', workspaceId)
         } else {
-          q = q.eq('user_id', user.id)
+          q = q.eq('user_id', user.id).is('workspace_id', null)
         }
 
         const { data } = await q
