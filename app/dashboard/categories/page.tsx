@@ -217,7 +217,7 @@ function RulesEditor({ categories }: { categories: Category[] }) {
           <div className="space-y-1">
             <Label className="text-xs">Look inside</Label>
             <select
-              className="h-9 w-full rounded-lg border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring dark:bg-input/30"
+              className="h-9 w-full rounded-lg border border-input bg-background text-foreground px-3 text-sm outline-none focus:border-ring dark:bg-zinc-900 dark:text-zinc-100 dark:border-zinc-700"
               value={matchField}
               onChange={(e) => setMatchField(e.target.value as MatchField)}
             >
@@ -229,7 +229,7 @@ function RulesEditor({ categories }: { categories: Category[] }) {
           <div className="space-y-1">
             <Label className="text-xs">Assign category</Label>
             <select
-              className="h-9 w-full rounded-lg border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring dark:bg-input/30"
+              className="h-9 w-full rounded-lg border border-input bg-background text-foreground px-3 text-sm outline-none focus:border-ring dark:bg-zinc-900 dark:text-zinc-100 dark:border-zinc-700"
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
             >
