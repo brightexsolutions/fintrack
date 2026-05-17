@@ -196,9 +196,9 @@ function guessSkipReason(line: string): string {
     return 'M-Shwari loan message — format not recognised'
   }
 
-  // Received without phone
-  if (/received\s+Ksh/i.test(line) && !/\d{9,12}/i.test(line)) {
-    return 'Received money — phone number missing from SMS; could not parse sender'
+  // Received without date anchor (truly unparseable)
+  if (/received\s+Ksh/i.test(line) && !/\d{1,2}\/\d{1,2}\/\d{2,4}/i.test(line)) {
+    return 'Received money — date missing from SMS; could not parse'
   }
 
   // Looks like a Fuliza message but regex didn't match
@@ -284,19 +284,42 @@ function matchSent(sms: string): ParsedMpesaTransaction | null {
 }
 
 function matchReceived(sms: string): ParsedMpesaTransaction | null {
-  const m = sms.match(/(?:You have\s+)?received\s+Ksh([\d,]+\.?\d*)\s+from\s+(.+?)\s+(254\d{9}|\d{9,10})/i)
-  if (!m) return null
+  // Full phone present (unmasked): "received Ksh X from NAME 07XXXXXXXX on"
+  const mPhone = sms.match(/(?:You have\s+)?received\s+Ksh([\d,]+\.?\d*)\s+from\s+(.+?)\s+(254\d{9}|\d{9,10})\s+on/i)
+  if (mPhone) {
+    return {
+      mpesa_ref: parseRef(sms),
+      type: 'income',
+      mpesa_type: 'received',
+      amount: parseAmount(mPhone[1]),
+      fee: null,
+      balance_after: parseBalance(sms),
+      counterparty: mPhone[2].trim(),
+      counterparty_number: mPhone[3],
+      timestamp: parseTimestamp(sms),
+      description: `Received from ${mPhone[2].trim()}`,
+      raw: sms,
+    }
+  }
+  // Masked phone (0710***021) or institution name with no phone — anchor on date
+  const mAny = sms.match(/(?:You have\s+)?received\s+Ksh([\d,]+\.?\d*)\s+from\s+(.+?)\s+on\s+\d{1,2}\/\d{1,2}\/\d{2,4}/i)
+  if (!mAny) return null
+  // Extract anything that looks like a phone (including masked) from the counterparty field
+  const cpRaw = mAny[2].trim()
+  const phoneMatch = cpRaw.match(/((?:254|\+254|0)\d[\d*]{8,9})$/)
+  const counterparty = phoneMatch ? cpRaw.slice(0, cpRaw.length - phoneMatch[0].length).trim() : cpRaw
+  const counterparty_number = phoneMatch ? phoneMatch[0] : null
   return {
     mpesa_ref: parseRef(sms),
     type: 'income',
     mpesa_type: 'received',
-    amount: parseAmount(m[1]),
+    amount: parseAmount(mAny[1]),
     fee: null,
     balance_after: parseBalance(sms),
-    counterparty: m[2].trim(),
-    counterparty_number: m[3],
+    counterparty: counterparty || cpRaw,
+    counterparty_number,
     timestamp: parseTimestamp(sms),
-    description: `Received from ${m[2].trim()}`,
+    description: `Received from ${counterparty || cpRaw}`,
     raw: sms,
   }
 }
@@ -320,7 +343,8 @@ function matchBuyGoods(sms: string): ParsedMpesaTransaction | null {
 }
 
 function matchWithdraw(sms: string): ParsedMpesaTransaction | null {
-  const m = sms.match(/withdrawn Ksh([\d,]+\.?\d*)\s+from\s+(.+?)\s+New/i)
+  // Handles both "withdrawn" (old) and "Withdraw" (new Safaricom format)
+  const m = sms.match(/[Ww]ithdrawn?\s+Ksh([\d,]+\.?\d*)\s+from\s+(.+?)(?:\s+New|\s+on\s+\d|\s+Transaction cost|\.)/i)
   if (!m) return null
   return {
     mpesa_ref: parseRef(sms),
@@ -338,19 +362,37 @@ function matchWithdraw(sms: string): ParsedMpesaTransaction | null {
 }
 
 function matchAirtime(sms: string): ParsedMpesaTransaction | null {
-  const m = sms.match(/Ksh([\d,]+\.?\d*)\s+sent to your\s+(.+?)\s+airtime(?:\s+account)?/i)
-  if (!m) return null
+  // Self airtime: "Ksh X sent to your Safaricom airtime account"
+  const mSelf = sms.match(/Ksh([\d,]+\.?\d*)\s+sent to your\s+(.+?)\s+airtime(?:\s+account)?/i)
+  if (mSelf) {
+    return {
+      mpesa_ref: parseRef(sms),
+      type: 'expense',
+      mpesa_type: 'airtime',
+      amount: parseAmount(mSelf[1]),
+      fee: null,
+      balance_after: parseBalance(sms),
+      counterparty: mSelf[2]?.trim() ?? 'Safaricom',
+      counterparty_number: null,
+      timestamp: parseTimestamp(sms),
+      description: `Airtime: ${mSelf[2]?.trim() ?? 'Safaricom'}`,
+      raw: sms,
+    }
+  }
+  // Third-party airtime: "You bought Ksh X of airtime for 07XXXXXXXX on DATE"
+  const mBought = sms.match(/You bought Ksh([\d,]+\.?\d*)\s+of airtime for\s+([\d+]+)/i)
+  if (!mBought) return null
   return {
     mpesa_ref: parseRef(sms),
     type: 'expense',
     mpesa_type: 'airtime',
-    amount: parseAmount(m[1]),
+    amount: parseAmount(mBought[1]),
     fee: null,
     balance_after: parseBalance(sms),
-    counterparty: m[2]?.trim() ?? 'Safaricom',
-    counterparty_number: null,
+    counterparty: 'Safaricom',
+    counterparty_number: mBought[2],
     timestamp: parseTimestamp(sms),
-    description: `Airtime: ${m[2]?.trim() ?? 'Safaricom'}`,
+    description: `Airtime for ${mBought[2]}`,
     raw: sms,
   }
 }
@@ -431,6 +473,46 @@ function matchMShwariLoan(sms: string): ParsedMpesaTransaction | null {
     timestamp: parseTimestamp(sms),
     description: `M-Shwari loan: Ksh ${mAlt[1]}`,
     raw: sms,
+  }
+}
+
+// Transfer TO KCB M-Pesa savings — internal pocket move (note: Safaricom typo "transfered")
+function matchKcbMpesaOut(sms: string): ParsedMpesaTransaction | null {
+  const m = sms.match(/Ksh\s*([\d,]+\.?\d*)\s+transfere?d\s+to\s+KCB M-PESA account/i)
+  if (!m) return null
+  return {
+    mpesa_ref: parseRef(sms),
+    type: 'expense',
+    mpesa_type: 'kcb_mpesa',
+    amount: parseAmount(m[1]),
+    fee: parseFee(sms),
+    balance_after: parseBalance(sms),
+    counterparty: 'KCB M-Pesa',
+    counterparty_number: null,
+    timestamp: parseTimestamp(sms),
+    description: `Transfer to KCB M-Pesa: Ksh ${m[1]}`,
+    raw: sms,
+    is_transfer: true,
+  }
+}
+
+// M-Shwari loan repayment deducted from M-PESA
+function matchMShwariRepay(sms: string): ParsedMpesaTransaction | null {
+  const m = sms.match(/Loan of Ksh\s*([\d,]+\.?\d*)\s+repaid from your M-PESA/i)
+  if (!m) return null
+  return {
+    mpesa_ref: parseRef(sms),
+    type: 'expense',
+    mpesa_type: 'mshwari_out',
+    amount: parseAmount(m[1]),
+    fee: null,
+    balance_after: parseBalance(sms),
+    counterparty: 'M-Shwari',
+    counterparty_number: null,
+    timestamp: parseTimestamp(sms),
+    description: `M-Shwari loan repayment: Ksh ${m[1]}`,
+    raw: sms,
+    is_transfer: true,
   }
 }
 
@@ -583,6 +665,8 @@ const matchers = [
   matchMShwariOut,      // before matchMShwari (both match "M-Shwari")
   matchMShwari,
   matchMShwariLoan,
+  matchMShwariRepay,    // loan repayment — before generic mshwari
+  matchKcbMpesaOut,     // before matchKcbMpesaIn (both match "KCB M-PESA")
   matchKcbMpesaIn,
   matchKcbLoan,
   matchOkoaJahazi,
