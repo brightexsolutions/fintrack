@@ -12,6 +12,7 @@ import { DebtForm } from '@/components/debts/debt-form'
 import { PaymentForm } from '@/components/debts/payment-form'
 import { useDebts, useDeleteDebt } from '@/hooks/use-debts'
 import { useCurrency } from '@/hooks/use-currency'
+import { useProfile } from '@/hooks/use-profile'
 import type { Debt } from '@/types/database'
 import { useFinanceScope } from '@/hooks/use-finance-scope'
 import { PersonalOnlyNotice } from '@/components/workspace/personal-only-notice'
@@ -28,16 +29,20 @@ export default function DebtsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Debt | null>(null)
 
   const { data: debts = [], isLoading } = useDebts()
+  const { data: profile } = useProfile()
   const deleteMutation = useDeleteDebt()
 
-  const fulizaDebt = debts.find((d) => d.source_tag === 'fuliza')
-  const nonFulizaDebts = debts.filter((d) => d.source_tag !== 'fuliza')
+  const fulizaDebt = debts.find((d) => d.source_tag?.startsWith('fuliza'))
+  const nonFulizaDebts = debts.filter((d) => !d.source_tag?.startsWith('fuliza'))
   const filtered = nonFulizaDebts.filter((d) => d.type === tab)
   const activeDebts = filtered.filter((d) => d.status !== 'paid' && d.status !== 'cancelled')
   const settledDebts = filtered.filter((d) => d.status === 'paid' || d.status === 'cancelled')
 
   const totalOwed = activeDebts.reduce((s, d) => s + (d.amount - d.amount_paid), 0)
-  const fulizaOutstanding = fulizaDebt ? fulizaDebt.amount - fulizaDebt.amount_paid : 0
+  // Fuliza: amount field IS the outstanding balance (set directly from SMS, not a paid/total model)
+  const fulizaOutstanding = fulizaDebt?.status !== 'paid' ? (fulizaDebt?.amount ?? 0) : 0
+  const fulizaLimit = profile?.fuliza_limit ?? null
+  const fulizaAvailable = fulizaLimit != null ? fulizaLimit - fulizaOutstanding : null
 
   function handleEdit(d: Debt) {
     setEditing(d)
@@ -125,9 +130,17 @@ export default function DebtsPage() {
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {fulizaOutstanding > 0
-                    ? `You used Fuliza overdraft. Auto-repayment happens when money arrives in your M-Pesa. Total used: ${format(fulizaDebt.amount)}, repaid: ${format(fulizaDebt.amount_paid)}.`
-                    : `Fuliza balance fully repaid. Total cycled: ${format(fulizaDebt.amount)}.`
+                    ? `Fuliza overdraft outstanding. Auto-repaid when money arrives in M-Pesa.`
+                    : `Fuliza balance fully repaid.`
                   }
+                  {fulizaLimit != null && (
+                    <span className="ml-1">
+                      Limit: {format(fulizaLimit)}.
+                      {fulizaOutstanding > 0 && fulizaAvailable != null && (
+                        <span className="ml-1">Available: {format(Math.max(0, fulizaAvailable))}.</span>
+                      )}
+                    </span>
+                  )}
                   {fulizaDebt.due_date && fulizaOutstanding > 0 && (
                     <span className="ml-1 font-medium text-orange-600 dark:text-orange-400">
                       Due: {fulizaDebt.due_date}
