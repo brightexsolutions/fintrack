@@ -160,6 +160,97 @@ async function syncFulizaDebt(
   }
 }
 
+// ─── M-Shwari / KCB loan debt helpers ───────────────────────
+
+async function syncLoanDebts(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  workspaceId: string | null,
+  transactions: ImportMpesaDraft[]
+) {
+  // ── M-Shwari loans ────────────────────────────────────────
+  const mshwariLoans = transactions.filter((t) => t.mpesa_type === 'mshwari_loan')
+  const mshwariRepayments = transactions.filter(
+    (t) => t.mpesa_type === 'mshwari_out' && t.description?.startsWith('M-Shwari loan repayment')
+  )
+
+  for (const loan of mshwariLoans) {
+    // Use mpesa_ref as the unique key per loan so re-importing is idempotent
+    const sourceTag = `mshwari:${loan.mpesa_ref ?? `${userId}:${Date.now()}`}`
+    const { data: existing } = await supabase
+      .from('debts').select('id').eq('user_id', userId).eq('source_tag', sourceTag).maybeSingle()
+
+    if (!existing) {
+      await supabase.from('debts').insert({
+        user_id: userId,
+        workspace_id: workspaceId,
+        type: 'i_owe',
+        contact_name: 'M-Shwari',
+        amount: loan.amount,
+        amount_paid: 0,
+        currency: 'KES',
+        description: 'M-Shwari loan (auto-tracked from import)',
+        source_tag: sourceTag,
+        status: 'active',
+      })
+    }
+  }
+
+  if (mshwariRepayments.length > 0) {
+    // "repaid in full" appears in the Safaricom confirmation SMS raw text
+    const isFullRepayment = mshwariRepayments.some((t) => /repaid in full/i.test(t.raw))
+
+    const { data: activeDebt } = await supabase
+      .from('debts').select('id, amount')
+      .eq('user_id', userId).like('source_tag', 'mshwari:%').eq('status', 'active')
+      .order('created_at', { ascending: false }).limit(1).maybeSingle()
+
+    if (activeDebt) {
+      const totalRepaid = mshwariRepayments.reduce((s, t) => s + t.amount, 0)
+      await supabase.from('debts').update({
+        amount_paid: totalRepaid,
+        status: isFullRepayment ? 'paid' : 'active',
+        updated_at: new Date().toISOString(),
+      }).eq('id', activeDebt.id)
+
+      const paymentRows = mshwariRepayments.map((t) => ({
+        debt_id: activeDebt.id,
+        user_id: userId,
+        amount: t.amount,
+        note: 'Auto-payment from M-Pesa import',
+        paid_at: t.timestamp ? t.timestamp.toISOString() : new Date().toISOString(),
+      }))
+      await supabase.from('debt_payments').insert(paymentRows)
+    }
+  }
+
+  // ── KCB M-Pesa loans ─────────────────────────────────────
+  const kcbLoans = transactions.filter(
+    (t) => t.mpesa_type === 'kcb_mpesa' && t.description?.startsWith('KCB M-Pesa loan')
+  )
+
+  for (const loan of kcbLoans) {
+    const sourceTag = `kcb_loan:${loan.mpesa_ref ?? `${userId}:${Date.now()}`}`
+    const { data: existing } = await supabase
+      .from('debts').select('id').eq('user_id', userId).eq('source_tag', sourceTag).maybeSingle()
+
+    if (!existing) {
+      await supabase.from('debts').insert({
+        user_id: userId,
+        workspace_id: workspaceId,
+        type: 'i_owe',
+        contact_name: 'KCB M-Pesa',
+        amount: loan.amount,
+        amount_paid: 0,
+        currency: 'KES',
+        description: 'KCB M-Pesa loan (auto-tracked from import)',
+        source_tag: sourceTag,
+        status: 'active',
+      })
+    }
+  }
+}
+
 export function useImportMpesaTransactions() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -277,8 +368,9 @@ export function useImportMpesaTransactions() {
         throw insertErr
       }
 
-      // Auto-create / update Fuliza debt records in the background (non-blocking for UI)
+      // Auto-create / update Fuliza and loan debt records in the background (non-blocking for UI)
       syncFulizaDebt(supabase, user.id, workspace_id ?? null, toInsert).catch(() => {})
+      syncLoanDebts(supabase, user.id, workspace_id ?? null, toInsert).catch(() => {})
 
       await supabase
         .from('mpesa_imports')
