@@ -75,16 +75,26 @@ async function syncFulizaDebt(
 
   const sourceTag = workspaceId ? `fuliza:ws:${workspaceId}` : `fuliza:personal:${userId}`
 
-  // Find existing Fuliza debt (active, partially_paid, or paid so we can reactivate)
+  // Find existing Fuliza debt — check both the new namespaced tag and the legacy plain 'fuliza' tag
+  // so that debts created before the namespacing change are still found and updated.
   const { data: existingDebts } = await supabase
     .from('debts')
     .select('id, amount, amount_paid, status')
     .eq('user_id', userId)
-    .eq('source_tag', sourceTag)
+    .or(`source_tag.eq.${sourceTag},source_tag.eq.fuliza`)
     .order('created_at', { ascending: false })
     .limit(1)
 
   const existingDebt = existingDebts?.[0] ?? null
+
+  // If the found debt uses the legacy tag, migrate it to the namespaced tag
+  if (existingDebt) {
+    const { data: tagCheck } = await supabase
+      .from('debts').select('source_tag').eq('id', existingDebt.id).single()
+    if (tagCheck?.source_tag === 'fuliza') {
+      await supabase.from('debts').update({ source_tag: sourceTag }).eq('id', existingDebt.id)
+    }
+  }
 
   if (fulizaCredits.length > 0) {
     // Use the most recent outstanding amount (by timestamp), not the maximum.

@@ -60,8 +60,15 @@ export function usePushNotifications() {
       }
       setIsSubscribed(true)
       toast.success('Push notifications enabled')
-    } catch {
-      toast.error('Failed to enable push notifications')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg.includes('permission') || msg.includes('denied') || msg.includes('blocked')) {
+        toast.error('Notification permission denied. Allow notifications in your browser/phone settings, then try again.')
+      } else if (msg.includes('applicationServerKey') || msg.includes('VAPID') || msg.includes('key')) {
+        toast.error('Push configuration error — contact support.')
+      } else {
+        toast.error(`Push setup failed: ${msg.slice(0, 80)}`)
+      }
     } finally {
       setLoading(false)
     }
