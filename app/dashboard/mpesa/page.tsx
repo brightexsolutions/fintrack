@@ -487,7 +487,15 @@ export default function MpesaPage() {
                         </select>
                       </div>
                       <div className="space-y-1.5">
-                        <Label>Counterparty</Label>
+                        <Label>
+                          {draft.type === 'income'
+                            ? 'Received from'
+                            : draft.mpesa_type === 'buy_goods'
+                              ? 'Merchant'
+                              : draft.mpesa_type === 'paybill'
+                                ? 'Biller'
+                                : 'Sent to'}
+                        </Label>
                         <Input value={draft.counterparty ?? '—'} disabled />
                       </div>
                       <div className="space-y-1.5">
