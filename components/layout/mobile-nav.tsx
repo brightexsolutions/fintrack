@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Menu, LayoutDashboard, ArrowLeftRight, PiggyBank, CreditCard, Target, BarChart3, Smartphone, Users, Settings, LogOut, RefreshCw } from 'lucide-react'
+import { Menu, LayoutDashboard, ArrowLeftRight, PiggyBank, CreditCard, Target, BarChart3, Smartphone, Tag, Users, Settings, LogOut, RefreshCw } from 'lucide-react'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -28,6 +28,7 @@ const navItems: NavItem[] = [
   { href: '/dashboard/subscriptions', label: 'Subscriptions',icon: RefreshCw,       personalOnly: true },
   { href: '/dashboard/insights',     label: 'Insights',     icon: BarChart3 },
   { href: '/dashboard/mpesa',        label: 'M-Pesa Import',icon: Smartphone },
+  { href: '/dashboard/categories',   label: 'Categories',   icon: Tag, personalOnly: true },
   { href: '/dashboard/workspace',    label: 'Workspace',    icon: Users },
   { href: '/dashboard/settings',     label: 'Settings',     icon: Settings },
 ]
