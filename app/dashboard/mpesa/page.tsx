@@ -309,7 +309,9 @@ export default function MpesaPage() {
                 </p>
               </div>
               <div className="divide-y divide-amber-500/10">
-                {skipped.map((item, index) => (
+                {skipped.map((item, index) => {
+                  const isInfoOnly = /balance notification|balance inquiry|not a transaction|promotional|informational/i.test(item.reason)
+                  return (
                   <div key={`${item.line}-${index}`} className="px-4 py-3 space-y-2">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
@@ -322,7 +324,7 @@ export default function MpesaPage() {
                         <span className="text-xs text-emerald-600 font-medium shrink-0 flex items-center gap-1 mt-0.5">
                           <CheckCircle2 className="h-3.5 w-3.5" /> Saved
                         </span>
-                      ) : (
+                      ) : !isInfoOnly && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -404,7 +406,8 @@ export default function MpesaPage() {
                       </div>
                     )}
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )}
