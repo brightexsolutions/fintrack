@@ -27,7 +27,7 @@ export function useProfile() {
 export function useUpdateProfile() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (updates: Partial<Pick<Profile, 'full_name' | 'preferred_currency' | 'timezone' | 'notification_prefs'>>) => {
+    mutationFn: async (updates: Partial<Pick<Profile, 'full_name' | 'preferred_currency' | 'timezone' | 'notification_prefs' | 'fuliza_limit'>>) => {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')

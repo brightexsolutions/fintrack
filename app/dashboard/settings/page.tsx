@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2, Save, Bell, Palette, User, Globe, Download } from 'lucide-react'
+import { Loader2, Save, Bell, Palette, User, Globe, Download, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -55,6 +55,7 @@ export default function SettingsPage() {
     weekly_digest: true,
     payment_reminders: true,
   })
+  const [fulizaLimit, setFulizaLimit] = useState<string>('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -63,16 +64,19 @@ export default function SettingsPage() {
       setCurrency(profile.preferred_currency)
       setTimezone(profile.timezone)
       setNotifPrefs(profile.notification_prefs)
+      setFulizaLimit(profile.fuliza_limit != null ? String(profile.fuliza_limit) : '')
     }
   }, [profile])
 
   async function saveAll() {
     setSaving(true)
+    const parsed = fulizaLimit.trim() === '' ? null : parseFloat(fulizaLimit)
     await updateProfile.mutateAsync({
       full_name: fullName,
       preferred_currency: currency,
       timezone,
       notification_prefs: notifPrefs,
+      fuliza_limit: parsed != null && !isNaN(parsed) ? parsed : null,
     })
     setSaving(false)
   }
@@ -226,6 +230,26 @@ export default function SettingsPage() {
               Open this page in Safari, tap Share, then &quot;Add to Home Screen&quot; — then enable the toggle above.
             </p>
           </div>
+        </div>
+      </Section>
+
+      {/* Fuliza */}
+      <Section title="Fuliza M-Pesa" icon={Zap}>
+        <div className="space-y-1.5">
+          <Label>Your Fuliza overdraft limit (KES)</Label>
+          <Input
+            type="number"
+            min={0}
+            step={1}
+            value={fulizaLimit}
+            onChange={(e) => setFulizaLimit(e.target.value)}
+            placeholder="e.g. 1400"
+          />
+          <p className="text-xs text-muted-foreground">
+            Set this to your actual Safaricom Fuliza limit so the Debts page can show how much is still available.
+            Leave blank if you have opted out of Fuliza or your limit is unknown.
+            Safaricom adjusts limits automatically based on usage — update here if yours changes.
+          </p>
         </div>
       </Section>
 

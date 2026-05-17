@@ -66,7 +66,6 @@ async function syncFulizaDebt(
   workspaceId: string | null,
   transactions: ImportMpesaDraft[]
 ) {
-  // Collect fuliza credit transactions (those with outstanding balance)
   const fulizaCredits = transactions.filter(
     (t) => t.mpesa_type === 'fuliza' || (t.fuliza_outstanding != null && t.fuliza_outstanding > 0)
   )
@@ -76,48 +75,60 @@ async function syncFulizaDebt(
 
   const sourceTag = workspaceId ? `fuliza:ws:${workspaceId}` : `fuliza:personal:${userId}`
 
-  // Find existing active Fuliza debt
+  // Find existing Fuliza debt (active, partially_paid, or paid so we can reactivate)
   const { data: existingDebts } = await supabase
     .from('debts')
     .select('id, amount, amount_paid, status')
     .eq('user_id', userId)
     .eq('source_tag', sourceTag)
-    .in('status', ['active', 'partially_paid'])
+    .order('created_at', { ascending: false })
     .limit(1)
 
   const existingDebt = existingDebts?.[0] ?? null
 
-  // For credits: use the highest outstanding amount seen in this batch
   if (fulizaCredits.length > 0) {
-    const latestOutstanding = fulizaCredits.reduce((max, t) => {
-      const v = t.fuliza_outstanding ?? t.amount
-      return v > max ? v : max
-    }, 0)
+    // Use the most recent outstanding amount (by timestamp), not the maximum.
+    // Safaricom SMS always reflects the balance AFTER that event, so the newest one
+    // is the most accurate current balance.
+    const sorted = [...fulizaCredits].sort((a, b) => {
+      const ta = a.timestamp?.getTime() ?? 0
+      const tb = b.timestamp?.getTime() ?? 0
+      return tb - ta
+    })
+    const mostRecent = sorted[0]
+    const latestOutstanding = mostRecent.fuliza_outstanding ?? mostRecent.amount
+    const latestDueDate = mostRecent.fuliza_due_date ?? null
 
-    if (latestOutstanding > 0) {
-      if (existingDebt) {
-        // Update outstanding to the new amount
-        await supabase
-          .from('debts')
-          .update({ amount: latestOutstanding, updated_at: new Date().toISOString() })
-          .eq('id', existingDebt.id)
-      } else {
-        await supabase.from('debts').insert({
-          user_id: userId,
-          workspace_id: workspaceId,
-          type: 'i_owe',
-          contact_name: 'Safaricom Fuliza',
+    if (existingDebt) {
+      await supabase
+        .from('debts')
+        .update({
           amount: latestOutstanding,
-          currency: 'KES',
-          description: 'Fuliza M-PESA overdraft balance',
-          source_tag: sourceTag,
-          due_date: fulizaCredits[0].fuliza_due_date ?? null,
+          amount_paid: 0,
+          status: latestOutstanding > 0 ? 'active' : 'paid',
+          due_date: latestDueDate,
+          updated_at: new Date().toISOString(),
         })
-      }
+        .eq('id', existingDebt.id)
+    } else if (latestOutstanding > 0) {
+      await supabase.from('debts').insert({
+        user_id: userId,
+        workspace_id: workspaceId,
+        type: 'i_owe',
+        contact_name: 'Safaricom Fuliza',
+        amount: latestOutstanding,
+        amount_paid: 0,
+        currency: 'KES',
+        description: 'Fuliza M-PESA overdraft balance',
+        source_tag: sourceTag,
+        due_date: latestDueDate,
+      })
     }
   }
 
-  // For repayments: log a debt payment against the Fuliza debt
+  // When repayments arrive and there is an existing debt, check if a full-repayment
+  // message (fuliza_outstanding = 0) came in — handled above. Log payment rows for
+  // record-keeping only (the amount field is already the ground truth from SMS).
   if (fulizaRepayments.length > 0 && existingDebt) {
     const paymentRows = fulizaRepayments.map((t) => ({
       debt_id: existingDebt.id,
