@@ -145,7 +145,7 @@ export function TransactionForm({ open, onClose, editing }: TransactionFormProps
             <div className="space-y-2">
               <Label>Category</Label>
               <Select
-                value={categoryId || EMPTY_CATEGORY_VALUE}
+                value={filteredCategories.some((c) => c.id === categoryId) ? categoryId : EMPTY_CATEGORY_VALUE}
                 onValueChange={(v) => setValue('category_id', v === EMPTY_CATEGORY_VALUE ? '' : (v ?? ''))}
               >
                 <SelectTrigger>
